@@ -107,7 +107,7 @@
 
       <!-- Departemen -->
       <div>
-        <label class="label">Departemen</label>
+        <label class="label">Bagian</label>
         <input type="text" id="input-dept" placeholder="Contoh: HR, IT, Finance"
           class="input-field" />
       </div>
@@ -251,99 +251,163 @@
 
     // ===== FOTO PREVIEW =====
     function previewPhoto(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+  const file = event.target.files[0];
+  if (!file) return;
 
-      if (file.size > 2 * 1024 * 1024) {
-        showToast("Ukuran foto maksimal 2MB", "error");
-        return;
-      }
+  // Validasi tipe file
+  if (!file.type.startsWith("image/")) {
+    showToast("File harus berupa gambar", "error");
+    return;
+  }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        photoBase64 = e.target.result;
-        document.getElementById("photo-preview").src = photoBase64;
-        document.getElementById("photo-preview").classList.remove("hidden");
-        document.getElementById("photo-placeholder").classList.add("hidden");
-      };
-      reader.readAsDataURL(file);
-    }
+  // Validasi ukuran (2MB)
+  if (file.size > 2 * 1024 * 1024) {
+    showToast("Ukuran foto maksimal 2MB", "error");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    photoBase64 = e.target.result;
+    const preview = document.getElementById("photo-preview");
+    const placeholder = document.getElementById("photo-placeholder");
+    preview.src = photoBase64;
+    preview.classList.remove("hidden");
+    placeholder.classList.add("hidden");
+  };
+  reader.readAsDataURL(file);
+}
 
     // ===== LOAD USER =====
     window.onload = async function() {
-      user = await requireAuth({ requireProfile: false });
-      if (!user) return;
+  user = await requireAuth({ requireProfile: false });
+  if (!user) return;
 
-      // Isi data dari session
-      document.getElementById("display-name").textContent = user.name || "-";
-      document.getElementById("display-email").textContent = user.email || "-";
-      document.getElementById("display-role").textContent = user.role || "USER";
+  // Isi info akun
+  document.getElementById("display-name").textContent =
+    user.name || "-";
+  document.getElementById("display-email").textContent =
+    user.email || "-";
+  document.getElementById("display-role").textContent =
+    user.role || "USER";
 
-      if (user.picture) {
-        document.getElementById("profile-pic").src = user.picture;
-        document.getElementById("user-avatar").src = user.picture;
-        document.getElementById("user-avatar").classList.remove("hidden");
-      }
+  if (user.picture) {
+    document.getElementById("profile-pic").src = user.picture;
+    document.getElementById("user-avatar").src = user.picture;
+    document.getElementById("user-avatar").classList.remove("hidden");
+  }
 
-      // Isi form jika data sudah ada
-      if (user.full_name) document.getElementById("input-name").value = user.full_name;
-      if (user.badge_number) document.getElementById("input-badge").value = user.badge_number;
-      if (user.department) document.getElementById("input-dept").value = user.department;
-      if (user.phone) document.getElementById("input-phone").value = user.phone;
-      if (user.photo_url) {
-        photoBase64 = user.photo_url;
-        document.getElementById("photo-preview").src = photoBase64;
-        document.getElementById("photo-preview").classList.remove("hidden");
-        document.getElementById("photo-placeholder").classList.add("hidden");
-      }
+  // Isi form dari data yang sudah tersimpan
+  if (user.full_name) {
+    document.getElementById("input-name").value = user.full_name;
+  }
+  if (user.badge_number) {
+    document.getElementById("input-badge").value = user.badge_number;
+  }
+  if (user.bagian) {
+    document.getElementById("input-dept").value = user.bagian;
+  }
+  if (user.phone) {
+    document.getElementById("input-phone").value = user.phone;
+  }
 
-      initCanvas();
-    };
+  // Tampilkan foto profil dari Drive URL
+  if (user.photo_url && user.photo_url.startsWith("http")) {
+    photoBase64 = null; // Reset, pakai URL langsung
+    const preview = document.getElementById("photo-preview");
+    const placeholder = document.getElementById("photo-placeholder");
+    preview.src = user.photo_url;
+    preview.classList.remove("hidden");
+    placeholder.classList.add("hidden");
+
+    // Tampilkan juga di header avatar
+    document.getElementById("user-avatar").src = user.photo_url;
+    document.getElementById("user-avatar").classList.remove("hidden");
+  }
+
+  // Update judul halaman
+  const title = document.getElementById("profile-title");
+  if (title) {
+    title.textContent = user.isProfileComplete
+      ? "Edit Profil" : "Lengkapi Profil Anda";
+  }
+
+  initCanvas();
+};
 
     // ===== SAVE PROFILE =====
-    async function saveProfile() {
-      const name = document.getElementById("input-name").value.trim();
-      const badge = document.getElementById("input-badge").value.trim();
-      const dept = document.getElementById("input-dept").value.trim();
-      const phone = document.getElementById("input-phone").value.trim();
+    // ===== SAVE PROFILE =====
+async function saveProfile() {
+  const name = document.getElementById("input-name").value.trim();
+  const badge = document.getElementById("input-badge").value.trim();
+  const dept = document.getElementById("input-dept").value.trim();
+  const phone = document.getElementById("input-phone").value.trim();
 
-      // Validasi wajib
-      if (!name) { showToast("Nama lengkap wajib diisi", "error"); return; }
-      if (!badge) { showToast("Nomor Badge/NIK wajib diisi", "error"); return; }
-      if (!hasDrawn) { showToast("Tanda tangan wajib dibuat", "error"); return; }
+  if (!name) { showToast("Nama lengkap wajib diisi", "error"); return; }
+  if (!badge) { showToast("Nomor Badge/NIK wajib diisi", "error"); return; }
+  if (!hasDrawn) { showToast("Tanda tangan wajib dibuat", "error"); return; }
 
-      const btn = document.getElementById("btn-save");
-      btn.disabled = true;
-      btn.textContent = "Menyimpan...";
-      showLoading("Menyimpan profil...");
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  btn.textContent = "Menyimpan...";
+  showLoading("Menyimpan profil...");
 
-      const signatureData = canvas.toDataURL("image/png");
+  const signatureData = canvas.toDataURL("image/png");
 
-      const result = await callAPI("saveFullProfile", {
-        fullName: name,
-        badgeNumber: badge,
-        department: dept,
-        phone: phone,
-        signatureData: signatureData.substring(0, 500),
-        photoUrl: photoBase64 ? photoBase64.substring(0, 500) : ""
-      });
+  // Step 1: Simpan data profil teks dulu
+  const result = await callAPI("saveFullProfile", {
+    fullName      : name,
+    badgeNumber   : badge,
+    bagian        : dept,
+    phone         : phone,
+    signatureData : signatureData.substring(0, 500)
+  });
 
-      hideLoading();
-      btn.disabled = false;
-      btn.innerHTML = "💾 Simpan Profil";
+  if (!result.success) {
+    hideLoading();
+    btn.disabled = false;
+    btn.innerHTML = "💾 Simpan Profil";
+    showToast("Gagal: " + result.message, "error");
+    return;
+  }
 
-      if (result.success) {
-        showToast("Profil berhasil disimpan!", "success");
-        // Update session
-        storeUser({ ...user, ...result.updatedUser, idToken: user.idToken });
-        setTimeout(() => {
-          window.location.href = user.role === "ADMIN" ||
-            user.role === "SUPERADMIN" ? "admin.html" : "index.html";
-        }, 1500);
-      } else {
-        showToast("Gagal: " + result.message, "error");
-      }
+  // Step 2: Upload foto jika ada
+  if (photoBase64) {
+    showLoading("Mengupload foto profil...");
+    const photoResult = await callAPI("uploadProfilePhoto", {
+      base64Data: photoBase64
+    });
+
+    if (photoResult.success) {
+      // Update session dengan URL foto baru
+      updateSessionUser({ photo_url: photoResult.photoUrl });
+    } else {
+      showToast(
+        "Profil tersimpan, tapi foto gagal upload: " + photoResult.message,
+        "warning"
+      );
     }
+  }
+
+  hideLoading();
+  btn.disabled = false;
+  btn.innerHTML = "💾 Simpan Profil";
+
+  // Update session
+  storeUser({
+    ...user,
+    ...result.updatedUser,
+    idToken: user.idToken
+  });
+
+  showToast("Profil berhasil disimpan!", "success");
+  setTimeout(() => {
+    window.location.href =
+      user.role === "ADMIN" || user.role === "SUPERADMIN"
+        ? "admin.html" : "index.html";
+  }, 1500);
+}
+
 
     // ===== NAVIGATION =====
     function goBack() {
