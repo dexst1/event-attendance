@@ -140,7 +140,7 @@ async function submitCreateEvent() {
   }
 
   showLoading("Membuat event...");
-  const result = await callAPI("createEvent", {
+  const result = await callAPI("submitCreateEvent", {
     title, start, end
   });
   hideLoading();
@@ -163,7 +163,7 @@ async function submitCreateEvent() {
 function confirmDeleteEvent(eventId, eventTitle) {
   showDeleteModal(
     `Hapus event "${eventTitle}"? Semua log presensi event ini juga akan dihapus.`,
-    () => deleteEvent(eventId)
+    () => submitDeleteEvent(eventId)
   );
 }
 
