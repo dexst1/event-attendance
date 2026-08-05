@@ -42,6 +42,76 @@
     .countdown-ring {
       animation: countdown-ring 15s linear infinite;
     }
+    /* Animasi Success Overlay */
+.success-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  gap: 20px;
+  animation: fadeIn 0.4s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.checkmark-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(16,185,129,0.15);
+  border: 3px solid #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: scaleIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+@keyframes scaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.checkmark-icon {
+  font-size: 56px;
+  animation: bounceIn 0.6s 0.2s cubic-bezier(0.175,0.885,0.32,1.275) both;
+}
+@keyframes bounceIn {
+  from { transform: scale(0) rotate(-30deg); opacity: 0; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.success-text {
+  animation: slideUp 0.5s 0.3s ease both;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.success-detail {
+  animation: slideUp 0.5s 0.4s ease both;
+}
+.confetti {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confettiFall linear forwards;
+  pointer-events: none;
+}
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-100px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
   </style>
 </head>
 <body class="min-h-screen pb-10 relative overflow-x-hidden">
@@ -167,6 +237,7 @@
     startQRTimer();
     loadEvents();
     loadHistory();
+    startAttendancePolling();
   };
 
   // ===== USER INFO =====
@@ -406,11 +477,182 @@
       </div>
     `).join("");
   }
+// ===== ATTENDANCE POLLING =====
+let attendancePoller = null;
+let alreadyNotified = [];
+
+function startAttendancePolling() {
+  // Poll setiap 5 detik
+  attendancePoller = setInterval(async () => {
+    await checkAttendanceStatus();
+  }, 5000);
+}
+
+async function checkAttendanceStatus() {
+  const result = await callAPI("getUserAttendanceHistory");
+  if (!result.success || !result.logs || result.logs.length === 0) return;
+
+  // Ambil log terbaru
+  const latestLog = result.logs[0];
+  if (!latestLog) return;
+
+  // Cek apakah presensi ini baru (dalam 30 detik terakhir)
+  const logTime = new Date(latestLog.timestamp).getTime();
+  const now = Date.now();
+  const isRecent = (now - logTime) < 30000; // 30 detik
+
+  // Cek apakah sudah pernah dinotifikasi
+  const alreadyShown = alreadyNotified.includes(latestLog.log_id);
+
+  if (isRecent && !alreadyShown) {
+    alreadyNotified.push(latestLog.log_id);
+    showSuccessOverlay(latestLog);
+  }
+}
+
+// ===== SUCCESS OVERLAY =====
+function showSuccessOverlay(log) {
+  // Stop QR timer sementara
+  if (qrTimer) clearInterval(qrTimer);
+
+  // Buat confetti
+  spawnConfetti();
+
+  // Buat overlay
+  const overlay = document.createElement("div");
+  overlay.id = "success-overlay";
+  overlay.className = "success-overlay";
+  overlay.innerHTML = `
+    <div class="checkmark-circle">
+      <span class="checkmark-icon">✅</span>
+    </div>
+
+    <div class="success-text text-center space-y-1">
+      <h2 class="text-white text-2xl font-bold">
+        Presensi Berhasil!
+      </h2>
+      <p class="text-emerald-400 text-sm font-medium">
+        Kehadiran Anda telah tercatat
+      </p>
+    </div>
+
+    <div class="success-detail glass rounded-2xl p-4
+      w-full max-w-xs space-y-2 mx-4">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">📅</span>
+        <div>
+          <p class="text-gray-400 text-xs">Event</p>
+          <p class="text-white text-sm font-semibold">
+            ${log.eventTitle || "Event"}
+          </p>
+        </div>
+      </div>
+      <div class="h-px bg-white/10"></div>
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🕐</span>
+        <div>
+          <p class="text-gray-400 text-xs">Waktu Presensi</p>
+          <p class="text-white text-sm font-semibold">
+            ${formatDateTime(log.timestamp)}
+          </p>
+        </div>
+      </div>
+      <div class="h-px bg-white/10"></div>
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🪪</span>
+        <div>
+          <p class="text-gray-400 text-xs">Badge</p>
+          <p class="text-white text-sm font-semibold">
+            ${user.badge_number || "-"}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <button onclick="closeSuccessOverlay()"
+      class="px-8 py-3 bg-emerald-600 hover:bg-emerald-700
+        text-white font-bold rounded-2xl text-sm transition
+        success-detail">
+      Tutup
+    </button>
+
+    <p class="text-gray-500 text-xs success-detail">
+      Menutup otomatis dalam <span id="close-countdown">10</span> detik
+    </p>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Auto close countdown
+  let closeCount = 10;
+  const closeTimer = setInterval(() => {
+    closeCount--;
+    const el = document.getElementById("close-countdown");
+    if (el) el.textContent = closeCount;
+    if (closeCount <= 0) {
+      clearInterval(closeTimer);
+      closeSuccessOverlay();
+    }
+  }, 1000);
+
+  // Simpan timer untuk di-clear saat tutup manual
+  overlay.dataset.closeTimer = closeTimer;
+}
+
+function closeSuccessOverlay() {
+  const overlay = document.getElementById("success-overlay");
+  if (!overlay) return;
+
+  // Clear auto close timer
+  if (overlay.dataset.closeTimer) {
+    clearInterval(parseInt(overlay.dataset.closeTimer));
+  }
+
+  // Animasi keluar
+  overlay.style.opacity = "0";
+  overlay.style.transition = "opacity 0.3s ease";
+
+  setTimeout(() => {
+    overlay.remove();
+    // Restart QR timer
+    startQRTimer();
+    // Reload history
+    loadHistory();
+  }, 300);
+}
+
+// ===== CONFETTI =====
+function spawnConfetti() {
+  const colors = [
+    "#6366f1", "#8b5cf6", "#10b981",
+    "#f59e0b", "#ef4444", "#3b82f6"
+  ];
+
+  for (let i = 0; i < 60; i++) {
+    setTimeout(() => {
+      const el = document.createElement("div");
+      el.className = "confetti";
+      el.style.cssText = `
+        left: ${Math.random() * 100}vw;
+        top: -10px;
+        background: ${colors[Math.floor(Math.random() * colors.length)]};
+        width: ${Math.random() * 10 + 5}px;
+        height: ${Math.random() * 10 + 5}px;
+        animation-duration: ${Math.random() * 2 + 2}s;
+        animation-delay: ${Math.random() * 0.5}s;
+        border-radius: ${Math.random() > 0.5 ? "50%" : "2px"};
+      `;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }, i * 30);
+  }
+}
 
   // Cleanup saat halaman ditinggal
   window.addEventListener("beforeunload", () => {
     if (qrTimer) clearInterval(qrTimer);
     if (gpsWatcher) navigator.geolocation.clearWatch(gpsWatcher);
+    if (attendancePoller) clearInterval(attendancePoller);
   });
 </script>
 
