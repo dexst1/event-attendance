@@ -124,7 +124,7 @@ async function loadAttendanceCount(eventId) {
 }
 
 // ===== CREATE EVENT =====
-async function createEvent() {
+async function submitCreateEvent() {
   const title = document.getElementById("evt-title").value.trim();
   const start = document.getElementById("evt-start").value;
   const end = document.getElementById("evt-end").value;
@@ -167,7 +167,7 @@ function confirmDeleteEvent(eventId, eventTitle) {
   );
 }
 
-async function deleteEvent(eventId) {
+async function submitDeleteEvent(eventId) {
   showLoading("Menghapus event...");
   const result = await callAPI("deleteEvent", { eventId });
   hideLoading();
