@@ -34,24 +34,70 @@ async function callAPI(action, data = {}) {
 }
 
 // ============================================================
-// 2. USER SESSION MANAGEMENT
+// USER SESSION MANAGEMENT — Pakai localStorage + expiry
 // ============================================================
+const SESSION_KEY = "attendance_user";
+const SESSION_DURATION = 12 * 60 * 60 * 1000; // 12 jam
+
 function storeUser(userData) {
-  sessionStorage.setItem("current_user", JSON.stringify(userData));
+  const session = {
+    data      : userData,
+    expiresAt : Date.now() + SESSION_DURATION,
+    createdAt : Date.now()
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
 function getStoredUser() {
-  const data = sessionStorage.getItem("current_user");
-  return data ? JSON.parse(data) : null;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+
+    const session = JSON.parse(raw);
+
+    // Cek expiry
+    if (Date.now() > session.expiresAt) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    return session.data;
+  } catch(e) {
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
 }
 
 function clearUser() {
-  sessionStorage.removeItem("current_user");
+  localStorage.removeItem(SESSION_KEY);
 }
 
 function isLoggedIn() {
   return getStoredUser() !== null;
 }
+
+function updateSessionUser(updates) {
+  const user = getStoredUser();
+  if (!user) return;
+  storeUser({ ...user, ...updates });
+}
+
+// Perpanjang session setiap kali user aktif
+function renewSession() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (!raw) return;
+  try {
+    const session = JSON.parse(raw);
+    session.expiresAt = Date.now() + SESSION_DURATION;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch(e) { /* ignore */ }
+}
+
+// Auto renew session saat user aktif di halaman
+document.addEventListener("click", renewSession);
+document.addEventListener("keydown", renewSession);
+document.addEventListener("touchstart", renewSession);
+
 
 // ============================================================
 // 3. ROUTE GUARD
