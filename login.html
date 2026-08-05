@@ -99,14 +99,30 @@
   document.getElementById("app-name").textContent = CONFIG.APP_NAME;
   document.getElementById("org-name").textContent = CONFIG.ORG_NAME;
 
-  // Jika sudah login, langsung redirect
   window.onload = function() {
+    // Cek jika sudah login
     if (isLoggedIn()) {
-      const user = getStoredUser();
-      redirectAfterLogin(user);
+      redirectAfterLogin(getStoredUser());
       return;
     }
-    // Tidak perlu init One Tap, langsung siapkan OAuth popup
+
+    // Cek jika kembali dari redirect Google (ada code di URL)
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    const error = urlParams.get("error");
+
+    if (error) {
+      showStatus("Login dibatalkan.", "error");
+      // Bersihkan URL
+      window.history.replaceState({}, "", window.location.pathname);
+      return;
+    }
+
+    if (code) {
+      // Ada authorization code, tukar ke token
+      handleAuthCode(code);
+      return;
+    }
   };
 
   // ===== HANDLE LOGIN BUTTON =====
@@ -118,50 +134,66 @@
         border-t-2 border-gray-400"></div>
       <span>Menghubungkan...</span>
     `;
+    showStatus("Mengalihkan ke Google...", "info");
 
-    // Tunggu library Google siap
-    const checkGoogle = setInterval(() => {
-      if (typeof google !== "undefined" && google.accounts) {
-        clearInterval(checkGoogle);
-        startOAuthFlow();
-      }
-    }, 100);
-
-    // Timeout 10 detik
-    setTimeout(() => {
-      clearInterval(checkGoogle);
-      showStatus("Library Google gagal dimuat. Refresh halaman.", "error");
-      resetButton();
-    }, 10000);
+    // Redirect ke Google OAuth
+    const authUrl = buildGoogleAuthUrl();
+    window.location.href = authUrl;
   }
 
-  // ===== OAUTH POPUP FLOW =====
-  function startOAuthFlow() {
-    try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.GOOGLE_CLIENT_ID,
-        scope: "openid email profile",
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error) {
-            showStatus("Login dibatalkan atau gagal.", "error");
-            resetButton();
-            return;
-          }
-          await fetchUserInfo(tokenResponse.access_token);
-        },
-        error_callback: (err) => {
-          showStatus("Login gagal: " + (err.message || err.type), "error");
-          resetButton();
-        }
-      });
+  // ===== BUILD GOOGLE AUTH URL =====
+  function buildGoogleAuthUrl() {
+    const params = new URLSearchParams({
+      client_id     : CONFIG.GOOGLE_CLIENT_ID,
+      redirect_uri  : window.location.origin + 
+                      window.location.pathname,
+      response_type : "token",  // Implicit flow — langsung dapat token
+      scope         : "openid email profile",
+      prompt        : "select_account"
+    });
+    return "https://accounts.google.com/o/oauth2/v2/auth?" + 
+           params.toString();
+  }
 
-      client.requestAccessToken({ prompt: "select_account" });
-
-    } catch(err) {
-      showStatus("Error: " + err.message, "error");
-      resetButton();
+  // ===== HANDLE IMPLICIT FLOW (token langsung di URL hash) =====
+  window.onload = function() {
+    // Cek jika sudah login
+    if (isLoggedIn()) {
+      redirectAfterLogin(getStoredUser());
+      return;
     }
-  }
+
+    // Implicit flow: token ada di URL hash (#access_token=...)
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get("access_token");
+      const error = params.get("error");
+
+      // Bersihkan hash dari URL
+      window.history.replaceState(
+        {}, "", window.location.pathname
+      );
+
+      if (error) {
+        showStatus("Login gagal: " + error, "error");
+        return;
+      }
+
+      if (accessToken) {
+        showStatus("Memproses login...", "info");
+        fetchUserInfo(accessToken);
+        return;
+      }
+    }
+
+    // Cek error di URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("error")) {
+      showStatus("Login dibatalkan.", "error");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  };
 
   // ===== AMBIL INFO USER DARI GOOGLE =====
   async function fetchUserInfo(accessToken) {
@@ -172,12 +204,14 @@
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
-      if (!res.ok) throw new Error("Gagal mengambil info user dari Google.");
+      if (!res.ok) throw new Error("Gagal mengambil info user.");
 
       const info = await res.json();
 
       if (!info.email) throw new Error("Email tidak ditemukan.");
-      if (!info.email_verified) throw new Error("Email belum diverifikasi Google.");
+      if (!info.email_verified) {
+        throw new Error("Email belum diverifikasi Google.");
+      }
 
       await processLogin(
         info.email,
@@ -196,7 +230,22 @@
   async function processLogin(email, name, picture, accessToken) {
     showStatus("Memverifikasi akun di server...", "info");
     try {
-      const result = await callAPILogin(accessToken, email, "getCurrentUser");
+      const response = await fetch(CONFIG.GAS_API_URL, {
+        method  : "POST",
+        headers : { "Content-Type": "text/plain" },
+        body    : JSON.stringify({
+          action     : "getCurrentUser",
+          email      : email,
+          idToken    : accessToken,
+          accessToken: accessToken
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
 
       if (!result || result.error) {
         showStatus(
@@ -210,47 +259,29 @@
       // Simpan ke session
       storeUser({
         ...result,
-        name       : name,
-        picture    : picture,
-        idToken    : accessToken,
+        name         : name,
+        picture      : picture,
+        idToken      : accessToken,
         tokenIssuedAt: Date.now()
       });
 
       showStatus("Login berhasil! Mengalihkan...", "success");
-      setTimeout(() => redirectAfterLogin(result), 1000);
+      setTimeout(() => redirectAfterLogin(result), 800);
 
     } catch(err) {
-      showStatus("Error server: " + err.message, "error");
+      showStatus("Error: " + err.message, "error");
       resetButton();
     }
-  }
-
-  // ===== CALL API KHUSUS LOGIN =====
-  // Tidak pakai callAPI() biasa karena session belum ada
-  async function callAPILogin(accessToken, email, action) {
-    const response = await fetch(CONFIG.GAS_API_URL, {
-      method  : "POST",
-      headers : { "Content-Type": "text/plain" },
-      body    : JSON.stringify({
-        action,
-        email,
-        idToken    : accessToken,
-        accessToken: accessToken
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return await response.json();
   }
 
   // ===== REDIRECT SETELAH LOGIN =====
   function redirectAfterLogin(user) {
     if (!user.isProfileComplete) {
       window.location.href = "profile.html";
-    } else if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
+    } else if (
+      user.role === "ADMIN" ||
+      user.role === "SUPERADMIN"
+    ) {
       window.location.href = "admin.html";
     } else {
       window.location.href = "index.html";
@@ -265,7 +296,8 @@
       success : "bg-emerald-500/20 text-emerald-300",
       error   : "bg-rose-500/20 text-rose-300"
     };
-    el.className = `w-full p-3 rounded-xl text-xs text-center ${colors[type]}`;
+    el.className = `w-full p-3 rounded-xl text-xs
+      text-center ${colors[type]}`;
     el.textContent = msg;
     el.classList.remove("hidden");
   }
@@ -280,5 +312,6 @@
     `;
   }
 </script>
+
 </body>
 </html>
