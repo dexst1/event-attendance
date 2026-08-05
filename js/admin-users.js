@@ -71,7 +71,7 @@ function renderUsersList(users) {
             </p>
             <p class="text-gray-500 text-[10px]">
               Badge: ${user.badge_number || "-"}
-              ${user.department ? `· ${user.department}` : ""}
+              ${user.bagian ? `· ${user.bagian}` : ""}
             </p>
           </div>
 
@@ -134,7 +134,7 @@ function filterUsers() {
     (user.full_name && user.full_name.toLowerCase().includes(query)) ||
     (user.email && user.email.toLowerCase().includes(query)) ||
     (user.badge_number && user.badge_number.toLowerCase().includes(query)) ||
-    (user.department && user.department.toLowerCase().includes(query))
+    (user.bagian && user.bagian.toLowerCase().includes(query))
   );
 
   renderUsersList(filtered);
@@ -214,7 +214,7 @@ async function viewUserDetail(email) {
         <div class="grid grid-cols-2 gap-2">
           ${[
             { label: "Badge/NIK", value: user.badge_number || "-" },
-            { label: "Departemen", value: user.department || "-" },
+            { label: "Bagian", value: user.bagian || "-" },
             { label: "No. HP", value: user.phone || "-" },
             { label: "Bergabung", value: formatDate(user.created_at) }
           ].map(item => `
