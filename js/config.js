@@ -1,3 +1,5 @@
+// Pastikan URL GitHub Pages sudah benar
+// Tidak perlu diubah jika sudah pakai format ini
 // ============================================================
 // KONFIGURASI APLIKASI
 // Jika ingin update URL API atau Client ID, ubah di sini saja
