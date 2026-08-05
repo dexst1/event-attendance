@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Profil — Event Attendance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { background-color: #0f0f1a; }
+    .glass {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    #sig-canvas {
+      touch-action: none;
+      cursor: crosshair;
+    }
+    .input-field {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      color: white;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-field:focus { border-color: #6366f1; }
+    .input-field::placeholder { color: #6b7280; }
+    .label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #9ca3af;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 pb-10">
+
+  <!-- Header -->
+  <header class="glass rounded-2xl p-4 flex items-center gap-3 mb-4 max-w-lg mx-auto">
+    <button onclick="goBack()"
+      class="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center
+        text-gray-400 hover:text-white hover:bg-white/10 transition">
+      ←
+    </button>
+    <div>
+      <h1 class="text-white font-bold text-base">Edit Profil</h1>
+      <p class="text-gray-400 text-xs">Lengkapi data diri Anda</p>
+    </div>
+    <!-- Avatar -->
+    <div class="ml-auto">
+      <img id="user-avatar" src="" alt="Avatar"
+        class="w-9 h-9 rounded-full border border-white/20 hidden">
+    </div>
+  </header>
+
+  <!-- Form -->
+  <div class="max-w-lg mx-auto space-y-4">
+
+    <!-- Info User (read only) -->
+    <div class="glass rounded-2xl p-5 space-y-3">
+      <h2 class="text-sm font-semibold text-gray-300">Informasi Akun</h2>
+
+      <div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+        <img id="profile-pic" src="" alt=""
+          class="w-10 h-10 rounded-full border border-white/20">
+        <div>
+          <p id="display-name" class="text-white text-sm font-medium">-</p>
+          <p id="display-email" class="text-gray-400 text-xs">-</p>
+        </div>
+        <span id="display-role"
+          class="ml-auto px-2 py-1 text-[10px] font-bold rounded-full
+            bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+          USER
+        </span>
+      </div>
+    </div>
+
+    <!-- Data Diri -->
+    <div class="glass rounded-2xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-gray-300">Data Diri</h2>
+
+      <!-- Nama Lengkap -->
+      <div>
+        <label class="label">Nama Lengkap <span class="text-rose-400">*</span></label>
+        <input type="text" id="input-name" placeholder="Masukkan nama lengkap"
+          class="input-field" />
+      </div>
+
+      <!-- Nomor Badge / NIK -->
+      <div>
+        <label class="label">Nomor Badge / NIK <span class="text-rose-400">*</span></label>
+        <input type="text" id="input-badge" placeholder="Masukkan nomor badge atau NIK"
+          class="input-field" />
+      </div>
+
+      <!-- Departemen -->
+      <div>
+        <label class="label">Departemen</label>
+        <input type="text" id="input-dept" placeholder="Contoh: HR, IT, Finance"
+          class="input-field" />
+      </div>
+
+      <!-- Nomor HP -->
+      <div>
+        <label class="label">Nomor HP</label>
+        <input type="tel" id="input-phone" placeholder="Contoh: 08123456789"
+          class="input-field" />
+      </div>
+    </div>
+
+    <!-- Foto Profil -->
+    <div class="glass rounded-2xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-gray-300">Foto Profil</h2>
+
+      <div class="flex items-center gap-4">
+        <div id="photo-preview-wrap"
+          class="w-20 h-20 rounded-2xl bg-white/5 border border-white/10
+            flex items-center justify-center overflow-hidden flex-shrink-0">
+          <img id="photo-preview" src="" alt=""
+            class="w-full h-full object-cover hidden">
+          <span id="photo-placeholder" class="text-3xl">👤</span>
+        </div>
+        <div class="flex-1 space-y-2">
+          <label for="input-photo"
+            class="block w-full py-2 px-4 bg-white/5 border border-white/10
+              rounded-xl text-gray-300 text-xs text-center cursor-pointer
+              hover:bg-white/10 transition">
+            📷 Pilih Foto
+          </label>
+          <input type="file" id="input-photo" accept="image/*"
+            class="hidden" onchange="previewPhoto(event)">
+          <p class="text-gray-500 text-[10px] text-center">
+            Format: JPG, PNG. Maks 2MB
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tanda Tangan Digital -->
+    <div class="glass rounded-2xl p-5 space-y-3">
+      <div class="flex justify-between items-center">
+        <h2 class="text-sm font-semibold text-gray-300">Tanda Tangan Digital</h2>
+        <button onclick="clearCanvas()"
+          class="text-[11px] text-rose-400 hover:text-rose-300 
+            px-2 py-1 rounded-lg hover:bg-rose-500/10 transition">
+          🗑 Hapus
+        </button>
+      </div>
+      <p class="text-gray-500 text-[10px]">
+        Gambar tanda tangan Anda di bawah ini <span class="text-rose-400">*</span>
+      </p>
+      <canvas id="sig-canvas" width="500" height="180"
+        class="w-full bg-black/40 border border-white/10 rounded-xl">
+      </canvas>
+    </div>
+
+    <!-- Tombol Simpan -->
+    <button onclick="saveProfile()" id="btn-save"
+      class="w-full py-4 bg-indigo-600 hover:bg-indigo-700
+        text-white font-bold rounded-2xl shadow-lg transition
+        flex items-center justify-center gap-2 text-sm">
+      💾 Simpan Profil
+    </button>
+
+    <!-- Tombol Logout -->
+    <button onclick="logout()"
+      class="w-full py-3 bg-white/5 hover:bg-white/10
+        text-gray-400 hover:text-white font-medium rounded-2xl
+        transition text-sm border border-white/10">
+      🚪 Keluar
+    </button>
+
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // ===== STATE =====
+    let user = null;
+    let isDrawing = false;
+    let hasDrawn = false;
+    let photoBase64 = null;
+
+    // ===== CANVAS =====
+    const canvas = document.getElementById("sig-canvas");
+    const ctx = canvas.getContext("2d");
+
+    function initCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const displayWidth = rect.width || 500;
+
+      canvas.width = displayWidth * dpr;
+      canvas.height = 180 * dpr;
+      canvas.style.height = "180px";
+      ctx.scale(dpr, dpr);
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      const getPos = (e) => {
+        const r = canvas.getBoundingClientRect();
+        const src = e.touches ? e.touches[0] : e;
+        return {
+          x: (src.clientX - r.left),
+          y: (src.clientY - r.top)
+        };
+      };
+
+      canvas.addEventListener("mousedown", (e) => {
+        isDrawing = true; hasDrawn = true;
+        ctx.beginPath();
+        const p = getPos(e); ctx.moveTo(p.x, p.y);
+      });
+      canvas.addEventListener("mousemove", (e) => {
+        if (!isDrawing) return;
+        const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
+      });
+      canvas.addEventListener("mouseup", () => isDrawing = false);
+      canvas.addEventListener("mouseleave", () => isDrawing = false);
+      canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault(); isDrawing = true; hasDrawn = true;
+        ctx.beginPath();
+        const p = getPos(e); ctx.moveTo(p.x, p.y);
+      }, { passive: false });
+      canvas.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        if (!isDrawing) return;
+        const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
+      }, { passive: false });
+      canvas.addEventListener("touchend", () => isDrawing = false);
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasDrawn = false;
+    }
+
+    // ===== FOTO PREVIEW =====
+    function previewPhoto(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (file.size > 2 * 1024 * 1024) {
+        showToast("Ukuran foto maksimal 2MB", "error");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        photoBase64 = e.target.result;
+        document.getElementById("photo-preview").src = photoBase64;
+        document.getElementById("photo-preview").classList.remove("hidden");
+        document.getElementById("photo-placeholder").classList.add("hidden");
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // ===== LOAD USER =====
+    window.onload = async function() {
+      user = await requireAuth({ requireProfile: false });
+      if (!user) return;
+
+      // Isi data dari session
+      document.getElementById("display-name").textContent = user.name || "-";
+      document.getElementById("display-email").textContent = user.email || "-";
+      document.getElementById("display-role").textContent = user.role || "USER";
+
+      if (user.picture) {
+        document.getElementById("profile-pic").src = user.picture;
+        document.getElementById("user-avatar").src = user.picture;
+        document.getElementById("user-avatar").classList.remove("hidden");
+      }
+
+      // Isi form jika data sudah ada
+      if (user.full_name) document.getElementById("input-name").value = user.full_name;
+      if (user.badge_number) document.getElementById("input-badge").value = user.badge_number;
+      if (user.department) document.getElementById("input-dept").value = user.department;
+      if (user.phone) document.getElementById("input-phone").value = user.phone;
+      if (user.photo_url) {
+        photoBase64 = user.photo_url;
+        document.getElementById("photo-preview").src = photoBase64;
+        document.getElementById("photo-preview").classList.remove("hidden");
+        document.getElementById("photo-placeholder").classList.add("hidden");
+      }
+
+      initCanvas();
+    };
+
+    // ===== SAVE PROFILE =====
+    async function saveProfile() {
+      const name = document.getElementById("input-name").value.trim();
+      const badge = document.getElementById("input-badge").value.trim();
+      const dept = document.getElementById("input-dept").value.trim();
+      const phone = document.getElementById("input-phone").value.trim();
+
+      // Validasi wajib
+      if (!name) { showToast("Nama lengkap wajib diisi", "error"); return; }
+      if (!badge) { showToast("Nomor Badge/NIK wajib diisi", "error"); return; }
+      if (!hasDrawn) { showToast("Tanda tangan wajib dibuat", "error"); return; }
+
+      const btn = document.getElementById("btn-save");
+      btn.disabled = true;
+      btn.textContent = "Menyimpan...";
+      showLoading("Menyimpan profil...");
+
+      const signatureData = canvas.toDataURL("image/png");
+
+      const result = await callAPI("saveFullProfile", {
+        fullName: name,
+        badgeNumber: badge,
+        department: dept,
+        phone: phone,
+        signatureData: signatureData.substring(0, 500),
+        photoUrl: photoBase64 ? photoBase64.substring(0, 500) : ""
+      });
+
+      hideLoading();
+      btn.disabled = false;
+      btn.innerHTML = "💾 Simpan Profil";
+
+      if (result.success) {
+        showToast("Profil berhasil disimpan!", "success");
+        // Update session
+        storeUser({ ...user, ...result.updatedUser, idToken: user.idToken });
+        setTimeout(() => {
+          window.location.href = user.role === "ADMIN" ||
+            user.role === "SUPERADMIN" ? "admin.html" : "index.html";
+        }, 1500);
+      } else {
+        showToast("Gagal: " + result.message, "error");
+      }
+    }
+
+    // ===== NAVIGATION =====
+    function goBack() {
+      const u = getStoredUser();
+      if (!u || !u.isProfileComplete) return;
+      history.back();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Attendance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { background-color: #0f0f1a; }
+    .glass {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.1;
+      pointer-events: none;
+    }
+    .qr-wrapper {
+      background: white;
+      border-radius: 20px;
+      padding: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    @keyframes countdown-ring {
+      from { stroke-dashoffset: 0; }
+      to { stroke-dashoffset: 94; }
+    }
+    .countdown-ring {
+      animation: countdown-ring 15s linear infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-10 relative overflow-x-hidden">
+
+  <!-- Background Orbs -->
+  <div class="orb w-96 h-96 bg-indigo-600 -top-20 -right-20"></div>
+  <div class="orb w-80 h-80 bg-purple-600 bottom-20 -left-20"></div>
+
+  <div class="max-w-lg mx-auto p-4 space-y-4">
+
+    <!-- Header -->
+    <header class="glass rounded-2xl p-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-white font-bold text-base" id="app-name">Event Attendance</h1>
+        <p class="text-gray-400 text-xs" id="greeting">Selamat datang</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- Admin Button (hanya muncul untuk admin) -->
+        <button id="btn-admin" onclick="window.location.href='admin.html'"
+          class="hidden px-3 py-2 bg-emerald-600/20 border border-emerald-500/30
+            text-emerald-400 text-xs font-semibold rounded-xl hover:bg-emerald-600/30 transition">
+          Dashboard
+        </button>
+        <!-- Avatar -->
+        <button onclick="window.location.href='profile.html'"
+          class="relative group">
+          <img id="user-avatar" src="" alt="Profile"
+            class="w-10 h-10 rounded-full border-2 border-white/20
+              group-hover:border-indigo-500 transition">
+          <span class="absolute -bottom-1 -right-1 w-4 h-4 bg-indigo-600
+            rounded-full flex items-center justify-center text-[8px]">✏️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- User Info Card -->
+    <div class="glass rounded-2xl p-4 flex items-center gap-3">
+      <div class="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/30
+        flex items-center justify-center text-xl flex-shrink-0">
+        🪪
+      </div>
+      <div>
+        <p id="user-name" class="text-white font-semibold text-sm">-</p>
+        <p id="user-badge" class="text-gray-400 text-xs">Badge: -</p>
+        <p id="user-dept" class="text-gray-500 text-[11px]">-</p>
+      </div>
+      <span id="user-role-badge"
+        class="ml-auto px-2 py-1 text-[10px] font-bold rounded-full
+          bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex-shrink-0">
+        USER
+      </span>
+    </div>
+
+    <!-- QR Code Card -->
+    <div class="glass rounded-2xl p-6 flex flex-col items-center gap-4">
+      <div class="flex items-center justify-between w-full">
+        <h2 class="text-sm font-semibold text-gray-300">QR Code Presensi Anda</h2>
+        <!-- Countdown Ring -->
+        <div class="relative w-10 h-10 flex items-center justify-center">
+          <svg class="absolute inset-0 -rotate-90" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15"
+              fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15"
+              fill="none" stroke="#6366f1" stroke-width="3"
+              stroke-dasharray="94" stroke-dashoffset="0"
+              class="countdown-ring" id="progress-ring"/>
+          </svg>
+          <span id="countdown" class="text-xs font-bold text-indigo-400">15</span>
+        </div>
+      </div>
+
+      <!-- QR Display -->
+      <div id="qr-container" class="qr-wrapper min-h-[216px] min-w-[216px]
+        flex items-center justify-center">
+        <div class="animate-spin rounded-full h-8 w-8
+          border-t-2 border-indigo-500"></div>
+      </div>
+
+      <p class="text-gray-500 text-[11px] text-center">
+        QR Code diperbarui setiap 15 detik untuk keamanan.<br>
+        Tunjukkan QR ini kepada petugas untuk presensi.
+      </p>
+    </div>
+
+    <!-- Event Aktif -->
+    <div class="glass rounded-2xl p-4 space-y-3">
+      <h2 class="text-sm font-semibold text-gray-300">Event Aktif</h2>
+      <div id="events-list" class="space-y-2">
+        <div class="flex items-center justify-center py-4">
+          <div class="animate-spin rounded-full h-5 w-5
+            border-t-2 border-indigo-500"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Riwayat Presensi -->
+    <div class="glass rounded-2xl p-4 space-y-3">
+      <h2 class="text-sm font-semibold text-gray-300">Riwayat Presensi Saya</h2>
+      <div id="history-list" class="space-y-2">
+        <p class="text-gray-500 text-xs text-center py-4">
+          Memuat riwayat...
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    let user = null;
+    let qrTimer = null;
+    let countdownVal = CONFIG.QR_REFRESH_INTERVAL;
+
+    window.onload = async function() {
+      user = await requireAuth({ requireProfile: true });
+      if (!user) return;
+
+      renderUserInfo();
+      startQRTimer();
+      loadEvents();
+      loadHistory();
+    };
+
+    // ===== USER INFO =====
+    function renderUserInfo() {
+      document.getElementById("app-name").textContent = CONFIG.APP_NAME;
+      document.getElementById("greeting").textContent =
+        "Halo, " + (user.full_name || user.name || "User");
+      document.getElementById("user-name").textContent =
+        user.full_name || user.name || "-";
+      document.getElementById("user-badge").textContent =
+        "Badge: " + (user.badge_number || "-");
+      document.getElementById("user-dept").textContent =
+        user.department || "";
+      document.getElementById("user-role-badge").textContent =
+        user.role || "USER";
+
+      if (user.picture) {
+        document.getElementById("user-avatar").src = user.picture;
+      }
+
+      // Tampilkan tombol dashboard jika admin
+      if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
+        document.getElementById("btn-admin").classList.remove("hidden");
+      }
+    }
+
+    // ===== QR CODE =====
+    function startQRTimer() {
+      fetchQR();
+      if (qrTimer) clearInterval(qrTimer);
+      countdownVal = CONFIG.QR_REFRESH_INTERVAL;
+
+      qrTimer = setInterval(() => {
+        countdownVal--;
+        document.getElementById("countdown").textContent = countdownVal;
+
+        if (countdownVal <= 0) {
+          fetchQR();
+          countdownVal = CONFIG.QR_REFRESH_INTERVAL;
+        }
+      }, 1000);
+    }
+
+    async function fetchQR() {
+      const result = await callAPI("generateQRToken");
+
+      if (!result.success || result.error) {
+        document.getElementById("qr-container").innerHTML =
+          `<p class="text-rose-400 text-xs text-center p-4">
+            Gagal generate QR.<br>Refresh halaman.
+          </p>`;
+        return;
+      }
+
+      const container = document.getElementById("qr-container");
+      container.innerHTML = "";
+      new QRCode(container, {
+        text: result.qrData,
+        width: 200,
+        height: 200,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    // ===== EVENTS =====
+    async function loadEvents() {
+      const result = await callAPI("getActiveEvents");
+      const container = document.getElementById("events-list");
+
+      if (!result.success || !result.events || result.events.length === 0) {
+        container.innerHTML = `
+          <p class="text-gray-500 text-xs text-center py-3">
+            Tidak ada event aktif saat ini.
+          </p>`;
+        return;
+      }
+
+      container.innerHTML = result.events.map(event => `
+        <div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+          <div class="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/30
+            flex items-center justify-center text-sm flex-shrink-0">
+            📅
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-xs font-medium truncate">${event.title}</p>
+            <p class="text-gray-500 text-[10px]">
+              Sampai: ${formatDateTime(event.endTime)}
+            </p>
+          </div>
+          <span class="px-2 py-1 bg-emerald-500/20 text-emerald-400
+            text-[10px] font-bold rounded-full border border-emerald-500/30
+            flex-shrink-0">
+            AKTIF
+          </span>
+        </div>
+      `).join("");
+    }
+
+    // ===== HISTORY =====
+    async function loadHistory() {
+      const result = await callAPI("getUserAttendanceHistory");
+      const container = document.getElementById("history-list");
+
+      if (!result.success || !result.logs || result.logs.length === 0) {
+        container.innerHTML = `
+          <p class="text-gray-500 text-xs text-center py-3">
+            Belum ada riwayat presensi.
+          </p>`;
+        return;
+      }
+
+      container.innerHTML = result.logs.map(log => `
+        <div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30
+            flex items-center justify-center text-sm flex-shrink-0">
+            ✅
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-white text-xs font-medium truncate">
+              ${log.eventTitle || "Event"}
+            </p>
+            <p class="text-gray-500 text-[10px]">
+              ${formatDateTime(log.timestamp)}
+            </p>
+          </div>
+          <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400
+            text-[10px] font-bold rounded-full border border-indigo-500/30
+            flex-shrink-0">
+            HADIR
+          </span>
+        </div>
+      `).join("");
+    }
+
+    // Cleanup timer saat halaman ditinggal
+    window.addEventListener("beforeunload", () => {
+      if (qrTimer) clearInterval(qrTimer);
+    });
+  </script>
+</body>
+</html>

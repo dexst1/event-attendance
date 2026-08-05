@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scanner QR — Event Attendance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { background-color: #0f0f1a; }
+    .glass {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    #video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1/1;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: #000;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    canvas { display: none; }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .scan-box {
+      width: 220px;
+      height: 220px;
+      position: relative;
+    }
+    .corner {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-color: #6366f1;
+      border-style: solid;
+    }
+    .tl { top:0; left:0; border-width:4px 0 0 4px; border-radius:8px 0 0 0; }
+    .tr { top:0; right:0; border-width:4px 4px 0 0; border-radius:0 8px 0 0; }
+    .bl { bottom:0; left:0; border-width:0 0 4px 4px; border-radius:0 0 0 8px; }
+    .br { bottom:0; right:0; border-width:0 4px 4px 0; border-radius:0 0 8px 0; }
+    .scanline {
+      position: absolute;
+      left: 8px; right: 8px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #6366f1, transparent);
+      top: 10px;
+      animation: scan 2s linear infinite;
+    }
+    @keyframes scan {
+      0% { top: 10px; opacity: 1; }
+      100% { top: 210px; opacity: 0; }
+    }
+    .result-card {
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top: 3px solid #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="min-h-screen pb-10">
+
+  <div class="max-w-lg mx-auto p-4 space-y-4">
+
+    <!-- Header -->
+    <header class="glass rounded-2xl p-4 flex items-center gap-3">
+      <button onclick="window.location.href='admin.html'"
+        class="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center
+          text-gray-400 hover:text-white hover:bg-white/10 transition">
+        ←
+      </button>
+      <div>
+        <h1 class="text-white font-bold text-base">Scanner QR</h1>
+        <p class="text-gray-400 text-xs">Scan QR Code peserta</p>
+      </div>
+    </header>
+
+    <!-- Pilih Event -->
+    <div class="glass rounded-2xl p-4 space-y-2">
+      <label class="block text-xs font-medium text-gray-400">
+        Event yang sedang berlangsung
+      </label>
+      <select id="select-event"
+        class="w-full px-4 py-3 bg-white/5 border border-white/10
+          rounded-xl text-white text-sm focus:outline-none
+          focus:border-indigo-500 transition">
+        <option value="" class="bg-gray-900">-- Pilih Event --</option>
+      </select>
+    </div>
+
+    <!-- Kamera -->
+    <div class="glass rounded-2xl p-4 space-y-4">
+
+      <!-- Loading State -->
+      <div id="cam-loading" class="flex flex-col items-center gap-3 py-8">
+        <div class="spinner"></div>
+        <p class="text-gray-400 text-sm">Memulai kamera...</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="cam-error" class="hidden space-y-3">
+        <div class="bg-rose-500/10 border border-rose-500/30
+          rounded-xl p-4 text-center space-y-2">
+          <p class="text-rose-400 font-semibold text-sm">⚠️ Kamera Tidak Dapat Diakses</p>
+          <p id="cam-error-msg" class="text-rose-300 text-xs leading-relaxed"></p>
+        </div>
+        <button onclick="startCamera()"
+          class="w-full py-3 bg-indigo-600 hover:bg-indigo-700
+            text-white font-semibold rounded-xl text-sm transition">
+          🔄 Coba Lagi
+        </button>
+      </div>
+
+      <!-- Video Feed -->
+      <div id="video-wrap" class="hidden">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+        <div class="overlay">
+          <div class="scan-box">
+            <div class="corner tl"></div>
+            <div class="corner tr"></div>
+            <div class="corner bl"></div>
+            <div class="corner br"></div>
+            <div class="scanline"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera Controls -->
+      <div id="cam-controls" class="hidden flex gap-2">
+        <button onclick="switchCamera()"
+          class="flex-1 py-3 bg-white/5 hover:bg-white/10
+            border border-white/10 text-gray-300 text-sm
+            font-semibold rounded-xl transition">
+          🔄 Ganti Kamera
+        </button>
+        <button onclick="toggleTorch()" id="btn-torch"
+          class="px-4 py-3 bg-white/5 hover:bg-white/10
+            border border-white/10 text-gray-300 text-sm
+            font-semibold rounded-xl transition">
+          🔦
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Hasil Scan -->
+    <div id="result-container" class="hidden"></div>
+
+    <!-- Log Scan Session -->
+    <div class="glass rounded-2xl p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-gray-300">Log Scan Sesi Ini</h2>
+        <span id="scan-count"
+          class="px-2 py-1 bg-indigo-500/20 text-indigo-400
+            text-[10px] font-bold rounded-full border border-indigo-500/30">
+          0 scan
+        </span>
+      </div>
+      <div id="scan-log" class="space-y-2 max-h-60 overflow-y-auto">
+        <p class="text-gray-500 text-xs text-center py-3">
+          Belum ada scan dalam sesi ini.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    // ===== STATE =====
+    let stream = null;
+    let facing = "environment";
+    let loopId = null;
+    let lastScan = 0;
+    let scanDone = false;
+    let scanCount = 0;
+    let torchOn = false;
+    let user = null;
+
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    // ===== INIT =====
+    window.onload = async function() {
+      user = await requireAuth({
+        requireProfile: true,
+        requireAdmin: true
+      });
+      if (!user) return;
+
+      await loadEvents();
+      startCamera();
+    };
+
+    // ===== LOAD EVENTS =====
+    async function loadEvents() {
+      const result = await callAPI("getActiveEvents");
+      const sel = document.getElementById("select-event");
+
+      if (!result.success || !result.events || result.events.length === 0) {
+        sel.innerHTML = `
+          <option value="" class="bg-gray-900">
+            Tidak ada event aktif
+          </option>`;
+        return;
+      }
+
+      sel.innerHTML = `
+        <option value="" class="bg-gray-900">-- Pilih Event --</option>
+        ${result.events.map(e => `
+          <option value="${e.id}" class="bg-gray-900">
+            ${e.title}
+          </option>
+        `).join("")}
+      `;
+    }
+
+    // ===== KAMERA =====
+    async function startCamera() {
+      showCamState("loading");
+
+      // Cek dukungan browser
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showCamError(
+          "Browser ini tidak mendukung akses kamera.\n" +
+          "Gunakan Chrome atau Safari versi terbaru."
+        );
+        return;
+      }
+
+      try {
+        // Stop stream lama
+        if (stream) {
+          stream.getTracks().forEach(t => t.stop());
+          stream = null;
+        }
+        if (loopId) {
+          cancelAnimationFrame(loopId);
+          clearInterval(loopId);
+          loopId = null;
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: facing === "environment"
+              ? { ideal: "environment" } : "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        await new Promise((resolve, reject) => {
+          video.onloadedmetadata = () => video.play().then(resolve).catch(reject);
+          setTimeout(() => reject(new Error("Timeout kamera")), 10000);
+        });
+
+        showCamState("active");
+        scanDone = false;
+        beginScan();
+
+      } catch(e) {
+        handleCameraError(e);
+      }
+    }
+
+    function handleCameraError(e) {
+      let msg = "Gagal mengakses kamera.";
+      if (e.name === "NotAllowedError") {
+        msg = "Izin kamera ditolak.\n\nCara mengizinkan:\n" +
+              "Klik ikon kunci di address bar → Izinkan Kamera → Refresh halaman.";
+      } else if (e.name === "NotFoundError") {
+        msg = "Kamera tidak ditemukan di perangkat ini.";
+      } else if (e.name === "NotReadableError") {
+        msg = "Kamera sedang digunakan aplikasi lain.\n" +
+              "Tutup aplikasi lain dan coba lagi.";
+      } else if (e.name === "OverconstrainedError") {
+        // Coba fallback
+        tryFallbackCamera();
+        return;
+      } else {
+        msg = e.message || e.name;
+      }
+      showCamError(msg);
+    }
+
+    async function tryFallbackCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+        video.srcObject = stream;
+        await new Promise(resolve => {
+          video.onloadedmetadata = () => video.play().then(resolve);
+        });
+        showCamState("active");
+        scanDone = false;
+        beginScan();
+      } catch(e) {
+        showCamError("Kamera tidak dapat diakses: " + e.message);
+      }
+    }
+
+    function showCamState(state) {
+      document.getElementById("cam-loading").classList.add("hidden");
+      document.getElementById("cam-error").classList.add("hidden");
+      document.getElementById("video-wrap").classList.add("hidden");
+      document.getElementById("cam-controls").classList.add("hidden");
+
+      if (state === "loading") {
+        document.getElementById("cam-loading").classList.remove("hidden");
+      } else if (state === "error") {
+        document.getElementById("cam-error").classList.remove("hidden");
+      } else if (state === "active") {
+        document.getElementById("video-wrap").classList.remove("hidden");
+        document.getElementById("cam-controls").classList.remove("hidden");
+      }
+    }
+
+    function showCamError(msg) {
+      showCamState("error");
+      document.getElementById("cam-error-msg").textContent = msg;
+    }
+
+    function switchCamera() {
+      facing = facing === "environment" ? "user" : "environment";
+      scanDone = false;
+      startCamera();
+    }
+
+    async function toggleTorch() {
+      if (!stream) return;
+      const track = stream.getVideoTracks()[0];
+      if (!track) return;
+      try {
+        torchOn = !torchOn;
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        document.getElementById("btn-torch").textContent = torchOn ? "💡" : "🔦";
+      } catch(e) {
+        showToast("Senter tidak tersedia di perangkat ini", "warning");
+        torchOn = false;
+      }
+    }
+
+    // ===== SCAN ENGINE =====
+    function beginScan() {
+      if ("BarcodeDetector" in window) {
+        const detector = new BarcodeDetector({ formats: ["qr_code"] });
+        const loop = async () => {
+          if (scanDone) return;
+          if (video.readyState >= video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            try {
+              const codes = await detector.detect(canvas);
+              if (codes.length > 0) {
+                const now = Date.now();
+                if (now - lastScan > 2000) {
+                  lastScan = now;
+                  handleScanResult(codes[0].rawValue);
+                  return;
+                }
+              }
+            } catch(e) { /* ignore */ }
+          }
+          loopId = requestAnimationFrame(loop);
+        };
+        loopId = requestAnimationFrame(loop);
+      } else {
+        loadJsQR(() => {
+          loopId = setInterval(() => {
+            if (scanDone) { clearInterval(loopId); return; }
+            if (video.readyState < video.HAVE_ENOUGH_DATA) return;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code && code.data) {
+              const now = Date.now();
+              if (now - lastScan > 2000) {
+                lastScan = now;
+                handleScanResult(code.data);
+              }
+            }
+          }, 250);
+        });
+      }
+    }
+
+    function loadJsQR(callback) {
+      if (typeof jsQR !== "undefined") { callback(); return; }
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+      s.onload = callback;
+      s.onerror = () => showCamError("Gagal memuat library scanner.");
+      document.head.appendChild(s);
+    }
+
+    // ===== HANDLE HASIL SCAN =====
+    async function handleScanResult(text) {
+      if (!text) return;
+
+      const eventId = document.getElementById("select-event").value;
+      if (!eventId) {
+        showToast("Pilih event terlebih dahulu!", "warning");
+        return;
+      }
+
+      // Validasi JSON
+      try { JSON.parse(text); } catch(e) {
+        showToast("QR tidak valid, bukan format yang dikenali", "error");
+        return;
+      }
+
+      // Tampilkan loading hasil
+      showResult("loading", "Memverifikasi...");
+
+      const result = await callAPI("processAttendance", {
+        qrToken: text,
+        eventId: eventId
+      });
+
+      if (result.success) {
+        showResult("success", result.message);
+        addToLog(true, result.message);
+        showToast("Presensi berhasil!", "success");
+      } else {
+        showResult("error", result.message);
+        addToLog(false, result.message);
+        showToast(result.message, "error");
+      }
+
+      // Lanjut scan setelah 3 detik
+      setTimeout(() => {
+        hideResult();
+        scanDone = false;
+        beginScan();
+      }, 3000);
+    }
+
+    // ===== RESULT DISPLAY =====
+    function showResult(type, message) {
+      const container = document.getElementById("result-container");
+      container.classList.remove("hidden");
+
+      const styles = {
+        loading : "bg-indigo-500/20 border-indigo-500/30 text-indigo-300",
+        success : "bg-emerald-500/20 border-emerald-500/30 text-emerald-300",
+        error   : "bg-rose-500/20 border-rose-500/30 text-rose-300"
+      };
+      const icons = {
+        loading : "⏳", success : "✅", error : "❌"
+      };
+
+      container.innerHTML = `
+        <div class="result-card glass border rounded-2xl p-4 
+          ${styles[type]} space-y-1">
+          <p class="font-bold text-sm">
+            ${icons[type]} ${type === "loading" ? "Memproses" :
+              type === "success" ? "PRESENSI VALID" : "DITOLAK"}
+          </p>
+          <p class="text-xs leading-relaxed opacity-80">
+            ${message.replace(/\n/g, "<br>")}
+          </p>
+        </div>
+      `;
+    }
+
+    function hideResult() {
+      document.getElementById("result-container").classList.add("hidden");
+      document.getElementById("result-container").innerHTML = "";
+    }
+
+    // ===== LOG =====
+    function addToLog(success, message) {
+      scanCount++;
+      document.getElementById("scan-count").textContent = scanCount + " scan";
+
+      const log = document.getElementById("scan-log");
+      const time = new Date().toLocaleTimeString("id-ID");
+      const firstLine = message.split("\n")[0];
+
+      // Hapus pesan kosong
+      const empty = log.querySelector("p");
+      if (empty) empty.remove();
+
+      const item = document.createElement("div");
+      item.className = `flex items-center gap-3 p-3 rounded-xl
+        ${success ? "bg-emerald-500/10" : "bg-rose-500/10"}`;
+      item.innerHTML = `
+        <span class="text-lg flex-shrink-0">${success ? "✅" : "❌"}</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-medium truncate
+            ${success ? "text-emerald-300" : "text-rose-300"}">
+            ${firstLine}
+          </p>
+          <p class="text-[10px] text-gray-500">${time}</p>
+        </div>
+      `;
+
+      // Tambah di atas
+      log.insertBefore(item, log.firstChild);
+    }
+
+    // Cleanup saat halaman ditinggal
+    window.addEventListener("beforeunload", () => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (loopId) {
+        cancelAnimationFrame(loopId);
+        clearInterval(loopId);
+      }
+    });
+  </script>
+</body>
+</html>

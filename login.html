@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Event Attendance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #0f0f1a; }
+    .glass {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .btn-google {
+      background: white;
+      transition: all 0.2s;
+    }
+    .btn-google:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+    .btn-google:active { transform: translateY(0); }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.15;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+
+  <!-- Background Orbs -->
+  <div class="orb w-96 h-96 bg-indigo-600 -top-20 -left-20"></div>
+  <div class="orb w-80 h-80 bg-purple-600 bottom-0 right-0"></div>
+
+  <!-- Login Card -->
+  <div class="glass rounded-3xl p-8 w-full max-w-sm flex flex-col items-center gap-6 relative z-10">
+
+    <!-- Logo / Icon -->
+    <div class="w-20 h-20 rounded-2xl bg-indigo-600/20 border border-indigo-500/30
+      flex items-center justify-center text-4xl">
+      📋
+    </div>
+
+    <!-- Title -->
+    <div class="text-center">
+      <h1 class="text-2xl font-bold gradient-text" id="app-name">
+        Event Attendance
+      </h1>
+      <p class="text-gray-400 text-sm mt-1" id="org-name">
+        Sistem Presensi Digital
+      </p>
+    </div>
+
+    <!-- Divider -->
+    <div class="w-full h-px bg-white/10"></div>
+
+    <!-- Info -->
+    <p class="text-gray-400 text-xs text-center leading-relaxed">
+      Masuk menggunakan akun Google Anda untuk mengakses sistem presensi.
+    </p>
+
+    <!-- Google Sign In Button -->
+    <button id="btn-login" onclick="handleLogin()"
+      class="btn-google w-full flex items-center justify-center gap-3
+        px-6 py-3 rounded-2xl text-gray-700 font-semibold text-sm shadow-lg">
+      <img src="https://developers.google.com/identity/images/g-logo.png"
+        alt="Google" class="w-5 h-5">
+      <span>Masuk dengan Google</span>
+    </button>
+
+    <!-- Status Message -->
+    <div id="status" class="hidden w-full p-3 rounded-xl text-xs text-center"></div>
+
+    <!-- Footer -->
+    <p class="text-gray-600 text-[10px] text-center">
+      🔒 Data Anda aman dan terenkripsi
+    </p>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <script>
+    // Isi nama app dari config
+    document.getElementById("app-name").textContent = CONFIG.APP_NAME;
+    document.getElementById("org-name").textContent = CONFIG.ORG_NAME;
+
+    // Jika sudah login, langsung redirect
+    window.onload = function() {
+      if (isLoggedIn()) {
+        const user = getStoredUser();
+        redirectAfterLogin(user);
+      }
+      initGoogleSignIn();
+    };
+
+    function initGoogleSignIn() {
+      // Tunggu library Google siap
+      const checkGoogle = setInterval(() => {
+        if (typeof google !== "undefined" && google.accounts) {
+          clearInterval(checkGoogle);
+          google.accounts.id.initialize({
+            client_id: CONFIG.GOOGLE_CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: false
+          });
+        }
+      }, 100);
+    }
+
+    function handleLogin() {
+      const btn = document.getElementById("btn-login");
+      btn.disabled = true;
+      btn.innerHTML = `
+        <div class="animate-spin rounded-full h-4 w-4 
+          border-t-2 border-gray-400"></div>
+        <span>Menghubungkan...</span>
+      `;
+      showStatus("Membuka jendela login Google...", "info");
+
+      if (typeof google !== "undefined" && google.accounts) {
+        google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Fallback: gunakan popup manual
+            loginWithPopup();
+          }
+        });
+      } else {
+        showStatus("Library Google belum siap. Coba refresh halaman.", "error");
+        resetButton();
+      }
+    }
+
+    function loginWithPopup() {
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        scope: "openid email profile",
+        callback: async (tokenResponse) => {
+          if (tokenResponse.error) {
+            showStatus("Login dibatalkan.", "error");
+            resetButton();
+            return;
+          }
+          await fetchUserInfo(tokenResponse.access_token);
+        }
+      });
+      client.requestAccessToken({ prompt: "select_account" });
+    }
+
+    async function handleCredentialResponse(response) {
+      try {
+        // Decode JWT token dari Google
+        const payload = parseJwt(response.credential);
+        await processLogin(payload.email, payload.name, payload.picture, response.credential);
+      } catch(err) {
+        showStatus("Gagal memproses login: " + err.message, "error");
+        resetButton();
+      }
+    }
+
+    async function fetchUserInfo(accessToken) {
+      try {
+        const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const info = await res.json();
+        await processLogin(info.email, info.name, info.picture, accessToken);
+      } catch(err) {
+        showStatus("Gagal mengambil info user: " + err.message, "error");
+        resetButton();
+      }
+    }
+
+    async function processLogin(email, name, picture, token) {
+      showStatus("Memverifikasi akun...", "info");
+      try {
+        const result = await callAPIWithToken(token, email, "getCurrentUser");
+
+        if (result.error) {
+          showStatus("Gagal: " + result.message, "error");
+          resetButton();
+          return;
+        }
+
+        // Simpan data user ke session
+        storeUser({
+          ...result,
+          name: name,
+          picture: picture,
+          idToken: token
+        });
+
+        showStatus("Login berhasil! Mengalihkan...", "success");
+        setTimeout(() => redirectAfterLogin(result), 1000);
+
+      } catch(err) {
+        showStatus("Error: " + err.message, "error");
+        resetButton();
+      }
+    }
+
+    // Call API khusus login (belum ada token di session)
+    async function callAPIWithToken(token, email, action) {
+      const response = await fetch(CONFIG.GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action, email, idToken: token })
+      });
+      return await response.json();
+    }
+
+    function redirectAfterLogin(user) {
+      if (!user.isProfileComplete) {
+        window.location.href = "profile.html";
+      } else if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
+        window.location.href = "admin.html";
+      } else {
+        window.location.href = "index.html";
+      }
+    }
+
+    function parseJwt(token) {
+      const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(base64));
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById("status");
+      const colors = {
+        info    : "bg-indigo-500/20 text-indigo-300",
+        success : "bg-emerald-500/20 text-emerald-300",
+        error   : "bg-rose-500/20 text-rose-300"
+      };
+      el.className = `w-full p-3 rounded-xl text-xs text-center ${colors[type]}`;
+      el.textContent = msg;
+      el.classList.remove("hidden");
+    }
+
+    function resetButton() {
+      const btn = document.getElementById("btn-login");
+      btn.disabled = false;
+      btn.innerHTML = `
+        <img src="https://developers.google.com/identity/images/g-logo.png"
+          alt="Google" class="w-5 h-5">
+        <span>Masuk dengan Google</span>
+      `;
+    }
+  </script>
+</body>
+</html>

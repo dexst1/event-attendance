@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Admin — Event Attendance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { background-color: #0f0f1a; }
+    .glass {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 8px 12px;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #6b7280;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .nav-item.active {
+      background: rgba(99,102,241,0.2);
+      color: #818cf8;
+    }
+    .nav-item:hover:not(.active) {
+      background: rgba(255,255,255,0.05);
+      color: #9ca3af;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .input-field {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      color: white;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-field:focus { border-color: #6366f1; }
+    .input-field::placeholder { color: #4b5563; }
+    .btn-primary {
+      background: #4f46e5;
+      color: white;
+      font-weight: 700;
+      padding: 10px 20px;
+      border-radius: 12px;
+      font-size: 13px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-danger {
+      background: rgba(239,68,68,0.2);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.3);
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 11px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.3); }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 50;
+    }
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.08;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-24">
+
+  <!-- Background Orbs -->
+  <div class="orb w-96 h-96 bg-indigo-600 -top-20 -right-20"></div>
+  <div class="orb w-80 h-80 bg-purple-600 bottom-20 -left-20"></div>
+
+  <div class="max-w-2xl mx-auto p-4 space-y-4">
+
+    <!-- Header -->
+    <header class="glass rounded-2xl p-4 flex items-center justify-between">
+      <div>
+        <h1 class="gradient-text font-bold text-lg">Dashboard Admin</h1>
+        <p class="text-gray-400 text-xs" id="admin-email">-</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="admin-role"
+          class="px-2 py-1 text-[10px] font-bold rounded-full
+            bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+          ADMIN
+        </span>
+        <button onclick="window.location.href='index.html'"
+          class="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10
+            flex items-center justify-center text-gray-400
+            hover:text-white transition text-lg">
+          🏠
+        </button>
+        <button onclick="window.location.href='profile.html'"
+          class="relative group">
+          <img id="admin-avatar" src="" alt=""
+            class="w-9 h-9 rounded-full border-2 border-white/20
+              group-hover:border-indigo-500 transition">
+        </button>
+      </div>
+    </header>
+
+    <!-- STAT CARDS -->
+    <div class="grid grid-cols-2 gap-3" id="stat-cards">
+      <div class="stat-card">
+        <p class="text-gray-400 text-xs mb-1">Total User</p>
+        <p id="stat-users" class="text-white text-2xl font-bold">-</p>
+      </div>
+      <div class="stat-card">
+        <p class="text-gray-400 text-xs mb-1">Event Aktif</p>
+        <p id="stat-events" class="text-white text-2xl font-bold">-</p>
+      </div>
+      <div class="stat-card">
+        <p class="text-gray-400 text-xs mb-1">Total Presensi</p>
+        <p id="stat-attendance" class="text-white text-2xl font-bold">-</p>
+      </div>
+      <div class="stat-card">
+        <p class="text-gray-400 text-xs mb-1">Presensi Hari Ini</p>
+        <p id="stat-today" class="text-white text-2xl font-bold">-</p>
+      </div>
+    </div>
+
+    <!-- TAB NAVIGATION -->
+    <div class="glass rounded-2xl p-2 flex justify-around">
+      <div class="nav-item active" onclick="switchTab('overview')" id="tab-overview">
+        <span class="text-xl">📊</span>
+        <span>Overview</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('events')" id="tab-events">
+        <span class="text-xl">📅</span>
+        <span>Event</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('users')" id="tab-users">
+        <span class="text-xl">👥</span>
+        <span>User</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('scanner')" id="tab-scanner">
+        <span class="text-xl">📷</span>
+        <span>Scanner</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('export')" id="tab-export">
+        <span class="text-xl">📤</span>
+        <span>Export</span>
+      </div>
+    </div>
+
+    <!-- TAB: OVERVIEW -->
+    <div id="content-overview" class="tab-content active space-y-4">
+      <div class="glass rounded-2xl p-4 space-y-3">
+        <h2 class="text-sm font-semibold text-gray-300">
+          Grafik Presensi per Event
+        </h2>
+        <canvas id="chart-attendance" height="200"></canvas>
+      </div>
+      <div class="glass rounded-2xl p-4 space-y-3">
+        <h2 class="text-sm font-semibold text-gray-300">
+          Presensi Terkini
+        </h2>
+        <div id="recent-attendance" class="space-y-2">
+          <p class="text-gray-500 text-xs text-center py-3">Memuat...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: EVENTS -->
+    <div id="content-events" class="tab-content space-y-4">
+
+      <!-- Form Buat Event -->
+      <div class="glass rounded-2xl p-5 space-y-4">
+        <h2 class="text-sm font-semibold text-gray-300">+ Buat Event Baru</h2>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Nama Event</label>
+            <input type="text" id="evt-title" placeholder="Contoh: Rapat All Hands Q3"
+              class="input-field">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Waktu Mulai</label>
+              <input type="datetime-local" id="evt-start" class="input-field">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Waktu Selesai</label>
+              <input type="datetime-local" id="evt-end" class="input-field">
+            </div>
+          </div>
+          <button onclick="createEvent()" class="btn-primary w-full">
+            💾 Simpan Event
+          </button>
+        </div>
+      </div>
+
+      <!-- Daftar Event -->
+      <div class="glass rounded-2xl p-4 space-y-3">
+        <h2 class="text-sm font-semibold text-gray-300">Semua Event</h2>
+        <div id="events-list" class="space-y-2">
+          <p class="text-gray-500 text-xs text-center py-3">Memuat...</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB: USERS -->
+    <div id="content-users" class="tab-content space-y-4">
+
+      <!-- Search -->
+      <div class="glass rounded-2xl p-4">
+        <input type="text" id="user-search"
+          placeholder="🔍 Cari nama, email, atau badge..."
+          class="input-field" oninput="filterUsers()">
+      </div>
+
+      <!-- User List -->
+      <div class="glass rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-gray-300">Daftar User</h2>
+          <span id="user-count"
+            class="text-[10px] text-gray-500 bg-white/5
+              px-2 py-1 rounded-full">
+            0 user
+          </span>
+        </div>
+        <div id="users-list" class="space-y-2">
+          <p class="text-gray-500 text-xs text-center py-3">Memuat...</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB: SCANNER -->
+    <div id="content-scanner" class="tab-content">
+      <div class="glass rounded-2xl p-5 flex flex-col items-center gap-4">
+        <div class="text-6xl">📷</div>
+        <div class="text-center">
+          <h2 class="text-white font-bold text-base mb-1">Buka Scanner</h2>
+          <p class="text-gray-400 text-sm">
+            Scanner berjalan di halaman terpisah untuk akses kamera yang optimal.
+          </p>
+        </div>
+        <button onclick="window.location.href='scanner.html'"
+          class="btn-primary w-full py-4 text-base">
+          📷 Buka Halaman Scanner
+        </button>
+      </div>
+    </div>
+
+    <!-- TAB: EXPORT -->
+    <div id="content-export" class="tab-content space-y-4">
+      <div class="glass rounded-2xl p-5 space-y-4">
+        <h2 class="text-sm font-semibold text-gray-300">Export Data Presensi</h2>
+
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Pilih Event</label>
+          <select id="export-event" class="input-field">
+            <option value="all" class="bg-gray-900">Semua Event</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Dari Tanggal</label>
+            <input type="date" id="export-from" class="input-field">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Sampai Tanggal</label>
+            <input type="date" id="export-to" class="input-field">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="exportData('csv')"
+            class="btn-primary flex items-center justify-center gap-2">
+            📄 Export CSV
+          </button>
+          <button onclick="exportData('excel')"
+            class="btn-primary flex items-center justify-center gap-2"
+            style="background:#16a34a">
+            📊 Export Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- Export User -->
+      <div class="glass rounded-2xl p-5 space-y-3">
+        <h2 class="text-sm font-semibold text-gray-300">Export Data User</h2>
+        <button onclick="exportUsers()"
+          class="btn-primary w-full flex items-center justify-center gap-2">
+          👥 Export Daftar User
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <div class="fixed bottom-0 left-0 right-0 glass border-t border-white/10 p-2
+    flex justify-around max-w-2xl mx-auto">
+    <div class="nav-item" onclick="switchTab('overview')">
+      <span>📊</span><span>Overview</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('events')">
+      <span>📅</span><span>Event</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('users')">
+      <span>👥</span><span>User</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('scanner')">
+      <span>📷</span><span>Scanner</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('export')">
+      <span>📤</span><span>Export</span>
+    </div>
+  </div>
+
+  <!-- MODAL: KONFIRMASI HAPUS -->
+  <div id="modal-delete" class="modal-overlay hidden">
+    <div class="glass rounded-2xl p-6 w-full max-w-sm space-y-4">
+      <h3 class="text-white font-bold text-base">⚠️ Konfirmasi Hapus</h3>
+      <p id="modal-delete-msg" class="text-gray-400 text-sm"></p>
+      <div class="flex gap-3">
+        <button onclick="closeModal()"
+          class="flex-1 py-3 bg-white/5 hover:bg-white/10
+            text-gray-300 rounded-xl text-sm transition">
+          Batal
+        </button>
+        <button id="modal-confirm-btn"
+          class="flex-1 py-3 bg-rose-600 hover:bg-rose-700
+            text-white font-bold rounded-xl text-sm transition">
+          Hapus
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT ROLE USER -->
+  <div id="modal-role" class="modal-overlay hidden">
+    <div class="glass rounded-2xl p-6 w-full max-w-sm space-y-4">
+      <h3 class="text-white font-bold text-base">👤 Ubah Role User</h3>
+      <p id="modal-role-email" class="text-gray-400 text-sm"></p>
+      <select id="modal-role-select" class="input-field">
+        <option value="USER" class="bg-gray-900">USER</option>
+        <option value="ADMIN" class="bg-gray-900">ADMIN</option>
+        <option value="SUPERADMIN" class="bg-gray-900">SUPERADMIN</option>
+      </select>
+      <div class="flex gap-3">
+        <button onclick="closeRoleModal()"
+          class="flex-1 py-3 bg-white/5 hover:bg-white/10
+            text-gray-300 rounded-xl text-sm transition">
+          Batal
+        </button>
+        <button onclick="saveRole()"
+          class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700
+            text-white font-bold rounded-xl text-sm transition">
+          Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/admin-events.js"></script>
+  <script src="js/admin-users.js"></script>
+  <script src="js/admin-stats.js"></script>
+  <script src="js/admin-export.js"></script>
+  <script>
+    let user = null;
+    let currentTab = "overview";
+    let deleteCallback = null;
+    let roleTargetEmail = null;
+
+    // ===== INIT =====
+    window.onload = async function() {
+      user = await requireAuth({
+        requireProfile: true,
+        requireAdmin: true
+      });
+      if (!user) return;
+
+      // Isi info header
+      document.getElementById("admin-email").textContent = user.email;
+      document.getElementById("admin-role").textContent = user.role;
+      if (user.picture) {
+        document.getElementById("admin-avatar").src = user.picture;
+      }
+
+      // Load semua data
+      await Promise.all([
+        loadStats(),
+        loadRecentAttendance(),
+        loadEventsTab(),
+        loadUsersTab(),
+        loadExportEvents()
+      ]);
+    };
+
+    // ===== TAB NAVIGATION =====
+    function switchTab(tab) {
+      // Update nav
+      document.querySelectorAll(".nav-item").forEach(el => {
+        el.classList.remove("active");
+      });
+      document.querySelectorAll(`[onclick="switchTab('${tab}')"]`).forEach(el => {
+        el.classList.add("active");
+      });
+
+      // Update content
+      document.querySelectorAll(".tab-content").forEach(el => {
+        el.classList.remove("active");
+      });
+      document.getElementById(`content-${tab}`).classList.add("active");
+      currentTab = tab;
+    }
+
+    // ===== MODAL DELETE =====
+    function showDeleteModal(message, callback) {
+      document.getElementById("modal-delete-msg").textContent = message;
+      document.getElementById("modal-delete").classList.remove("hidden");
+      deleteCallback = callback;
+      document.getElementById("modal-confirm-btn").onclick = async () => {
+        closeModal();
+        if (deleteCallback) await deleteCallback();
+      };
+    }
+
+    function closeModal() {
+      document.getElementById("modal-delete").classList.add("hidden");
+      deleteCallback = null;
+    }
+
+    // ===== MODAL ROLE =====
+    function showRoleModal(email, currentRole) {
+      roleTargetEmail = email;
+      document.getElementById("modal-role-email").textContent = email;
+      document.getElementById("modal-role-select").value = currentRole;
+      document.getElementById("modal-role").classList.remove("hidden");
+    }
+
+    function closeRoleModal() {
+      document.getElementById("modal-role").classList.add("hidden");
+      roleTargetEmail = null;
+    }
+
+    async function saveRole() {
+      if (!roleTargetEmail) return;
+      const newRole = document.getElementById("modal-role-select").value;
+      showLoading("Mengubah role...");
+      const result = await callAPI("updateUserRole", {
+        targetEmail: roleTargetEmail,
+        newRole: newRole
+      });
+      hideLoading();
+      closeRoleModal();
+      if (result.success) {
+        showToast("Role berhasil diubah!", "success");
+        await loadUsersTab();
+      } else {
+        showToast("Gagal: " + result.message, "error");
+      }
+    }
+  </script>
+</body>
+</html>
