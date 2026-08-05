@@ -139,19 +139,54 @@ async function submitCreateEvent() {
     showToast("Waktu selesai harus setelah waktu mulai", "error"); return;
   }
 
+  // Siapkan data geofencing
+  let geofencing = { enabled: false };
+
+  if (geofencingEnabled) {
+    const radius = parseInt(document.getElementById("evt-radius").value);
+
+    if (!selectedLat || !selectedLng) {
+      showToast("Pilih titik lokasi di peta terlebih dahulu", "error");
+      return;
+    }
+    if (!radius || radius < 10) {
+      showToast("Radius minimal 10 meter", "error");
+      return;
+    }
+
+    geofencing = {
+      enabled : true,
+      lat     : selectedLat,
+      lng     : selectedLng,
+      radius  : radius
+    };
+  }
+
   showLoading("Membuat event...");
-  const result = await callAPI("submitCreateEvent", {
-    title, start, end
+  const result = await callAPI("createEvent", {
+    title,
+    start,
+    end,
+    geofencing
   });
   hideLoading();
 
   if (result.success) {
     showToast("Event berhasil dibuat!", "success");
+
     // Reset form
     document.getElementById("evt-title").value = "";
     document.getElementById("evt-start").value = "";
     document.getElementById("evt-end").value = "";
-    // Reload list
+
+    // Reset geofencing toggle jika aktif
+    if (geofencingEnabled) {
+      toggleGeofencing();
+      mapInitialized = false;
+      selectedLat = null;
+      selectedLng = null;
+    }
+
     await loadEventsTab();
     await loadExportEvents();
   } else {

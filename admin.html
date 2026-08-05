@@ -6,6 +6,33 @@
   <title>Dashboard Admin — Event Attendance</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Leaflet Maps -->
+<link rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  /* Override Leaflet dark mode */
+  .leaflet-container {
+    background: #1a1a2e !important;
+  }
+  .leaflet-tile {
+    filter: brightness(0.85) saturate(0.9);
+  }
+  .leaflet-control-zoom a {
+    background: #1e1e2e !important;
+    color: #e0e0e0 !important;
+    border-color: rgba(255,255,255,0.1) !important;
+  }
+  .leaflet-popup-content-wrapper {
+    background: #1e1e2e !important;
+    color: #e0e0e0 !important;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .leaflet-popup-tip {
+    background: #1e1e2e !important;
+  }
+</style>
+
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { background-color: #0f0f1a; }
@@ -203,42 +230,160 @@
     </div>
 
     <!-- TAB: EVENTS -->
-    <div id="content-events" class="tab-content space-y-4">
+<div id="content-events" class="tab-content space-y-4">
 
-      <!-- Form Buat Event -->
-      <div class="glass rounded-2xl p-5 space-y-4">
-        <h2 class="text-sm font-semibold text-gray-300">+ Buat Event Baru</h2>
-        <div class="space-y-3">
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Nama Event</label>
-            <input type="text" id="evt-title" placeholder="Contoh: Rapat All Hands Q3"
-              class="input-field">
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs text-gray-400 mb-1">Waktu Mulai</label>
-              <input type="datetime-local" id="evt-start" class="input-field">
-            </div>
-            <div>
-              <label class="block text-xs text-gray-400 mb-1">Waktu Selesai</label>
-              <input type="datetime-local" id="evt-end" class="input-field">
-            </div>
-          </div>
-          <button onclick="submitCreateEvent()" class="btn-primary w-full">
-            💾 Simpan Event
-          </button>
+  <!-- Form Buat Event -->
+  <div class="glass rounded-2xl p-5 space-y-4">
+    <h2 class="text-sm font-semibold text-gray-300">+ Buat Event Baru</h2>
+    <div class="space-y-3">
+
+      <!-- Nama Event -->
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Nama Event</label>
+        <input type="text" id="evt-title"
+          placeholder="Contoh: Rapat All Hands Q3"
+          class="input-field">
+      </div>
+
+      <!-- Waktu -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Waktu Mulai</label>
+          <input type="datetime-local" id="evt-start" class="input-field">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Waktu Selesai</label>
+          <input type="datetime-local" id="evt-end" class="input-field">
         </div>
       </div>
 
-      <!-- Daftar Event -->
-      <div class="glass rounded-2xl p-4 space-y-3">
-        <h2 class="text-sm font-semibold text-gray-300">Semua Event</h2>
-        <div id="events-list" class="space-y-2">
-          <p class="text-gray-500 text-xs text-center py-3">Memuat...</p>
+      <!-- Toggle Geofencing -->
+      <div class="flex items-center justify-between p-3
+        bg-white/5 rounded-xl border border-white/10">
+        <div>
+          <p class="text-white text-sm font-medium">📍 Aktifkan Geofencing</p>
+          <p class="text-gray-500 text-xs">
+            Presensi hanya valid di dalam radius lokasi event
+          </p>
         </div>
+        <button onclick="toggleGeofencing()" id="btn-geofencing"
+          class="relative w-12 h-6 rounded-full transition-colors duration-300
+            bg-gray-600 flex-shrink-0">
+          <span id="geofencing-thumb"
+            class="absolute top-0.5 left-0.5 w-5 h-5 bg-white
+              rounded-full shadow transition-transform duration-300">
+          </span>
+        </button>
       </div>
+
+      <!-- Geofencing Settings (hidden by default) -->
+      <div id="geofencing-settings" class="hidden space-y-3">
+
+        <!-- Radius Input -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">
+            Radius Area (meter)
+          </label>
+          <div class="flex gap-2 items-center">
+            <input type="number" id="evt-radius"
+              placeholder="Contoh: 100"
+              min="10" max="10000" value="100"
+              class="input-field flex-1"
+              oninput="updateRadiusDisplay()">
+            <span class="text-gray-400 text-sm flex-shrink-0">meter</span>
+          </div>
+          <!-- Preset Radius -->
+          <div class="flex gap-2 mt-2 flex-wrap">
+            <button onclick="setRadius(50)"
+              class="px-3 py-1 bg-white/5 hover:bg-white/10
+                text-gray-400 text-xs rounded-lg border
+                border-white/10 transition">
+              50m
+            </button>
+            <button onclick="setRadius(100)"
+              class="px-3 py-1 bg-white/5 hover:bg-white/10
+                text-gray-400 text-xs rounded-lg border
+                border-white/10 transition">
+              100m
+            </button>
+            <button onclick="setRadius(200)"
+              class="px-3 py-1 bg-white/5 hover:bg-white/10
+                text-gray-400 text-xs rounded-lg border
+                border-white/10 transition">
+              200m
+            </button>
+            <button onclick="setRadius(500)"
+              class="px-3 py-1 bg-white/5 hover:bg-white/10
+                text-gray-400 text-xs rounded-lg border
+                border-white/10 transition">
+              500m
+            </button>
+            <button onclick="setRadius(1000)"
+              class="px-3 py-1 bg-white/5 hover:bg-white/10
+                text-gray-400 text-xs rounded-lg border
+                border-white/10 transition">
+              1km
+            </button>
+          </div>
+        </div>
+
+        <!-- Map -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">
+            Titik Pusat Lokasi Event
+          </label>
+
+          <!-- Map Status -->
+          <div id="map-status"
+            class="flex items-center gap-2 p-2 mb-2
+              bg-amber-500/10 border border-amber-500/30
+              rounded-lg text-amber-400 text-xs">
+            <div class="animate-spin rounded-full h-3 w-3
+              border-t border-amber-400 flex-shrink-0"></div>
+            <span>Mengambil lokasi Anda...</span>
+          </div>
+
+          <!-- Map Container -->
+          <div id="event-map"
+            class="w-full rounded-xl overflow-hidden border border-white/10"
+            style="height: 280px; background: #1a1a2e;">
+          </div>
+
+          <!-- Koordinat Display -->
+          <div class="grid grid-cols-2 gap-2 mt-2">
+            <div class="bg-white/5 rounded-lg p-2">
+              <p class="text-gray-500 text-[10px] mb-0.5">Latitude</p>
+              <p id="display-lat" class="text-white text-xs font-mono">-</p>
+            </div>
+            <div class="bg-white/5 rounded-lg p-2">
+              <p class="text-gray-500 text-[10px] mb-0.5">Longitude</p>
+              <p id="display-lng" class="text-white text-xs font-mono">-</p>
+            </div>
+          </div>
+
+          <p class="text-gray-500 text-[10px] mt-1 text-center">
+            Klik pada peta untuk memindahkan titik lokasi event
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Tombol Simpan -->
+      <button onclick="submitCreateEvent()" class="btn-primary w-full">
+        💾 Simpan Event
+      </button>
 
     </div>
+  </div>
+
+  <!-- Daftar Event -->
+  <div class="glass rounded-2xl p-4 space-y-3">
+    <h2 class="text-sm font-semibold text-gray-300">Semua Event</h2>
+    <div id="events-list" class="space-y-2">
+      <p class="text-gray-500 text-xs text-center py-3">Memuat...</p>
+    </div>
+  </div>
+</div>
 
     <!-- TAB: USERS -->
     <div id="content-users" class="tab-content space-y-4">
@@ -499,5 +644,217 @@
       }
     }
   </script>
+  <script>
+// ============================================================
+// GEOFENCING & MAP LOGIC
+// ============================================================
+let geofencingEnabled = false;
+let eventMap = null;
+let eventMarker = null;
+let eventCircle = null;
+let selectedLat = null;
+let selectedLng = null;
+let mapInitialized = false;
+
+// ===== TOGGLE GEOFENCING =====
+function toggleGeofencing() {
+  geofencingEnabled = !geofencingEnabled;
+
+  // Update toggle UI
+  const btn = document.getElementById("btn-geofencing");
+  const thumb = document.getElementById("geofencing-thumb");
+  const settings = document.getElementById("geofencing-settings");
+
+  if (geofencingEnabled) {
+    btn.classList.remove("bg-gray-600");
+    btn.classList.add("bg-indigo-600");
+    thumb.style.transform = "translateX(24px)";
+    settings.classList.remove("hidden");
+
+    // Init map jika belum
+    if (!mapInitialized) {
+      initMap();
+    }
+  } else {
+    btn.classList.remove("bg-indigo-600");
+    btn.classList.add("bg-gray-600");
+    thumb.style.transform = "translateX(0)";
+    settings.classList.add("hidden");
+  }
+}
+
+// ===== INIT MAP =====
+function initMap() {
+  // Ambil lokasi admin sekarang
+  if (!navigator.geolocation) {
+    showMapStatus("GPS tidak tersedia di browser ini.", "error");
+    initMapAtDefault();
+    return;
+  }
+
+  showMapStatus("Mengambil lokasi Anda...", "loading");
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      selectedLat = lat;
+      selectedLng = lng;
+      showMapStatus(
+        `Lokasi ditemukan (akurasi ±${Math.round(position.coords.accuracy)}m)`,
+        "success"
+      );
+      createMap(lat, lng);
+    },
+    (error) => {
+      let msg = "Gagal ambil lokasi.";
+      if (error.code === 1) msg = "Izin GPS ditolak. Klik peta untuk pilih lokasi manual.";
+      if (error.code === 2) msg = "GPS tidak tersedia. Pilih lokasi manual di peta.";
+      if (error.code === 3) msg = "GPS timeout. Pilih lokasi manual di peta.";
+      showMapStatus(msg, "warning");
+      initMapAtDefault();
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+// ===== INIT MAP DI LOKASI DEFAULT =====
+function initMapAtDefault() {
+  // Default: Jakarta
+  createMap(-6.2088, 106.8456);
+}
+
+// ===== BUAT MAP =====
+function createMap(lat, lng) {
+  if (eventMap) {
+    eventMap.remove();
+    eventMap = null;
+  }
+
+  eventMap = L.map("event-map", {
+    center: [lat, lng],
+    zoom: 17,
+    zoomControl: true
+  });
+
+  // OpenStreetMap tiles
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors",
+    maxZoom: 19
+  }).addTo(eventMap);
+
+  // Custom marker icon
+  const markerIcon = L.divIcon({
+    html: `<div style="
+      background: #6366f1;
+      width: 20px; height: 20px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    "></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 20],
+    className: ""
+  });
+
+  // Tambah marker
+  eventMarker = L.marker([lat, lng], {
+    draggable: true,
+    icon: markerIcon
+  }).addTo(eventMap);
+
+  // Tambah circle radius
+  const radius = parseInt(document.getElementById("evt-radius").value) || 100;
+  eventCircle = L.circle([lat, lng], {
+    radius: radius,
+    color: "#6366f1",
+    fillColor: "#6366f1",
+    fillOpacity: 0.15,
+    weight: 2
+  }).addTo(eventMap);
+
+  // Update koordinat display
+  updateCoordDisplay(lat, lng);
+
+  // Event: marker di-drag
+  eventMarker.on("dragend", (e) => {
+    const pos = e.target.getLatLng();
+    selectedLat = pos.lat;
+    selectedLng = pos.lng;
+    eventCircle.setLatLng([pos.lat, pos.lng]);
+    updateCoordDisplay(pos.lat, pos.lng);
+  });
+
+  // Event: klik di map = pindahkan marker
+  eventMap.on("click", (e) => {
+    const { lat, lng } = e.latlng;
+    selectedLat = lat;
+    selectedLng = lng;
+    eventMarker.setLatLng([lat, lng]);
+    eventCircle.setLatLng([lat, lng]);
+    updateCoordDisplay(lat, lng);
+  });
+
+  mapInitialized = true;
+
+  // Fix leaflet rendering issue di hidden div
+  setTimeout(() => {
+    eventMap.invalidateSize();
+  }, 300);
+}
+
+// ===== UPDATE RADIUS CIRCLE =====
+function updateRadiusDisplay() {
+  const radius = parseInt(document.getElementById("evt-radius").value) || 100;
+  if (eventCircle) {
+    eventCircle.setRadius(radius);
+  }
+}
+
+function setRadius(value) {
+  document.getElementById("evt-radius").value = value;
+  updateRadiusDisplay();
+}
+
+// ===== UPDATE KOORDINAT DISPLAY =====
+function updateCoordDisplay(lat, lng) {
+  document.getElementById("display-lat").textContent =
+    lat.toFixed(6);
+  document.getElementById("display-lng").textContent =
+    lng.toFixed(6);
+}
+
+// ===== TAMPILKAN STATUS MAP =====
+function showMapStatus(msg, type) {
+  const el = document.getElementById("map-status");
+  const styles = {
+    loading : "bg-amber-500/10 border-amber-500/30 text-amber-400",
+    success : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+    warning : "bg-amber-500/10 border-amber-500/30 text-amber-400",
+    error   : "bg-rose-500/10 border-rose-500/30 text-rose-400"
+  };
+  const icons = {
+    loading : `<div class="animate-spin rounded-full h-3 w-3
+                border-t border-amber-400 flex-shrink-0"></div>`,
+    success : `<span>✅</span>`,
+    warning : `<span>⚠️</span>`,
+    error   : `<span>❌</span>`
+  };
+
+  el.className = `flex items-center gap-2 p-2 mb-2
+    border rounded-lg text-xs ${styles[type]}`;
+  el.innerHTML = `${icons[type]}<span>${msg}</span>`;
+}
+
+// Fix map size saat tab events dibuka
+const originalSwitchTab = switchTab;
+window.switchTab = function(tab) {
+  originalSwitchTab(tab);
+  if (tab === "events" && eventMap) {
+    setTimeout(() => eventMap.invalidateSize(), 300);
+  }
+};
+</script>
 </body>
 </html>
