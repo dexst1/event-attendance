@@ -90,11 +90,17 @@ function renderEventsList(events) {
           </div>
           <div class="flex gap-2">
             <button onclick="viewAttendance('${event.id}', '${event.title}')"
-              class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400
-                border border-indigo-500/30 rounded-lg text-[11px]
-                font-semibold hover:bg-indigo-500/30 transition">
-              👁 Detail
-            </button>
+  class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400
+    border border-indigo-500/30 rounded-lg text-[11px]
+    font-semibold hover:bg-indigo-500/30 transition">
+  👥 Peserta
+</button>
+<button onclick="openDocumentationModal('${event.id}', '${event.title}')"
+  class="px-3 py-1.5 bg-purple-500/20 text-purple-400
+    border border-purple-500/30 rounded-lg text-[11px]
+    font-semibold hover:bg-purple-500/30 transition">
+  📸 Foto
+</button>
             <button onclick="confirmDeleteEvent('${event.id}', '${event.title}')"
               class="btn-danger">
               🗑 Hapus
@@ -270,11 +276,12 @@ async function viewAttendance(eventId, eventTitle) {
               </span>
               <div class="flex-1 min-w-0">
                 <p class="text-white text-xs font-medium truncate">
-                  ${log.badge_number || "-"}
-                </p>
-                <p class="text-gray-400 text-[10px] truncate">
-                  ${log.email || "-"}
-                </p>
+  ${log.full_name || log.badge_number || "-"}
+</p>
+<p class="text-gray-400 text-[10px] truncate">
+  Badge: ${log.badge_number || "-"}
+</p>
+
               </div>
               <div class="text-right flex-shrink-0">
                 <p class="text-gray-400 text-[10px]">
@@ -305,4 +312,333 @@ function updateEventStats() {
     new Date(e.endTime).getTime() >= now
   ).length;
   document.getElementById("stat-events").textContent = activeCount;
+}
+
+// ============================================================
+// DOKUMENTASI FOTO EVENT
+// ============================================================
+
+// ===== BUKA MODAL DOKUMENTASI =====
+async function openDocumentationModal(eventId, eventTitle) {
+  showLoading("Memuat dokumentasi...");
+  const result = await callAPI("getEventPhotos", { eventId });
+  hideLoading();
+
+  const photos = result.success ? (result.photos || []) : [];
+
+  // Hapus modal lama jika ada
+  const existing = document.getElementById("modal-docs");
+  if (existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "modal-docs";
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="glass rounded-2xl w-full max-w-lg
+      max-h-[90vh] flex flex-col overflow-hidden">
+
+      <!-- Header -->
+      <div class="p-4 border-b border-white/10 flex
+        items-center justify-between flex-shrink-0">
+        <div>
+          <h3 class="text-white font-bold text-sm">
+            📸 Dokumentasi Event
+          </h3>
+          <p class="text-gray-400 text-xs mt-0.5">${eventTitle}</p>
+        </div>
+        <button onclick="document.getElementById('modal-docs').remove()"
+          class="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10
+            flex items-center justify-center text-gray-400
+            hover:text-white transition text-sm">
+          ✕
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="overflow-y-auto flex-1 p-4 space-y-4">
+
+        <!-- Upload Section -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <p class="text-gray-300 text-xs font-semibold">
+              Foto (${photos.length}/5)
+            </p>
+            ${photos.length < 5 ? `
+              <label for="doc-upload-${eventId}"
+                class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700
+                  text-white text-xs font-bold rounded-xl
+                  cursor-pointer transition flex items-center gap-1">
+                📷 Tambah Foto
+              </label>
+              <input type="file" id="doc-upload-${eventId}"
+                accept="image/*" class="hidden"
+                onchange="handleDocUpload(event, '${eventId}')">
+            ` : `
+              <span class="text-amber-400 text-xs">
+                ⚠️ Maksimal 5 foto
+              </span>
+            `}
+          </div>
+
+          <!-- Caption Input -->
+          ${photos.length < 5 ? `
+            <input type="text" id="doc-caption-${eventId}"
+              placeholder="Caption foto (opsional)"
+              class="input-field text-xs">
+          ` : ""}
+
+          <!-- Upload Progress -->
+          <div id="upload-progress-${eventId}" class="hidden">
+            <div class="flex items-center gap-2 p-3
+              bg-indigo-500/10 border border-indigo-500/30
+              rounded-xl text-indigo-400 text-xs">
+              <div class="animate-spin rounded-full h-3 w-3
+                border-t border-indigo-400"></div>
+              <span>Mengupload foto...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Photos Grid -->
+        <div id="photos-grid-${eventId}">
+          ${renderPhotosGrid(photos, eventId)}
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+
+// ===== RENDER GRID FOTO =====
+function renderPhotosGrid(photos, eventId) {
+  if (!photos || photos.length === 0) {
+    return `
+      <div class="flex flex-col items-center gap-3 py-8">
+        <span class="text-4xl">📷</span>
+        <p class="text-gray-500 text-xs text-center">
+          Belum ada foto dokumentasi.<br>
+          Tambahkan foto di atas.
+        </p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="grid grid-cols-2 gap-3">
+      ${photos.map((photo, index) => `
+        <div class="relative group rounded-xl overflow-hidden
+          border border-white/10 bg-white/5">
+
+          <!-- Foto -->
+          <img src="${photo.url}" alt="Dokumentasi ${index + 1}"
+            class="w-full aspect-square object-cover cursor-pointer
+              hover:opacity-90 transition"
+            onclick="openPhotoViewer('${photo.url}', '${photo.caption || ""}')">
+
+          <!-- Overlay info -->
+          <div class="absolute bottom-0 left-0 right-0
+            bg-gradient-to-t from-black/80 to-transparent
+            p-2 translate-y-full group-hover:translate-y-0
+            transition-transform duration-200">
+            ${photo.caption ? `
+              <p class="text-white text-[10px] font-medium truncate">
+                ${photo.caption}
+              </p>
+            ` : ""}
+            <p class="text-gray-400 text-[9px]">
+              ${formatDateTime(photo.uploadedAt)}
+            </p>
+          </div>
+
+          <!-- Tombol Hapus -->
+          <button onclick="confirmDeletePhoto(
+              '${eventId}',
+              '${photo.fileId}',
+              ${index + 1}
+            )"
+            class="absolute top-2 right-2 w-7 h-7
+              bg-rose-600/90 hover:bg-rose-600
+              rounded-lg flex items-center justify-center
+              text-white text-xs opacity-0 group-hover:opacity-100
+              transition-opacity">
+            🗑
+          </button>
+
+          <!-- Nomor foto -->
+          <span class="absolute top-2 left-2 w-5 h-5
+            bg-black/60 rounded-full flex items-center
+            justify-center text-white text-[9px] font-bold">
+            ${index + 1}
+          </span>
+
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+// ===== HANDLE UPLOAD FOTO =====
+async function handleDocUpload(event, eventId) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Validasi tipe
+  if (!file.type.startsWith("image/")) {
+    showToast("File harus berupa gambar", "error");
+    return;
+  }
+
+  // Validasi ukuran 2MB
+  if (file.size > 2 * 1024 * 1024) {
+    showToast("Ukuran foto maksimal 2MB", "error");
+    return;
+  }
+
+  // Ambil caption
+  const captionEl = document.getElementById(`doc-caption-${eventId}`);
+  const caption = captionEl ? captionEl.value.trim() : "";
+
+  // Tampilkan progress
+  const progress = document.getElementById(`upload-progress-${eventId}`);
+  if (progress) progress.classList.remove("hidden");
+
+  // Convert ke Base64
+  const base64 = await fileToBase64(file);
+
+  // Upload ke GAS
+  const result = await callAPI("uploadEventPhoto", {
+    eventId,
+    base64Data: base64,
+    caption
+  });
+
+  // Sembunyikan progress
+  if (progress) progress.classList.add("hidden");
+
+  if (result.success) {
+    showToast("Foto berhasil diupload!", "success");
+
+    // Reset input
+    event.target.value = "";
+    if (captionEl) captionEl.value = "";
+
+    // Update grid
+    const grid = document.getElementById(`photos-grid-${eventId}`);
+    if (grid) {
+      grid.innerHTML = renderPhotosGrid(result.photos, eventId);
+    }
+
+    // Update counter di header modal
+    const counter = document.querySelector(
+      "#modal-docs .text-gray-300"
+    );
+    if (counter) {
+      counter.textContent = `Foto (${result.photos.length}/5)`;
+    }
+
+    // Sembunyikan tombol upload jika sudah 5
+    if (result.photos.length >= 5) {
+      const uploadLabel = document.querySelector(
+        `label[for="doc-upload-${eventId}"]`
+      );
+      if (uploadLabel) uploadLabel.classList.add("hidden");
+    }
+
+  } else {
+    showToast("Gagal upload: " + result.message, "error");
+  }
+}
+
+// ===== KONFIRMASI HAPUS FOTO =====
+function confirmDeletePhoto(eventId, fileId, photoNum) {
+  showDeleteModal(
+    `Hapus foto dokumentasi #${photoNum}? File akan dihapus permanen.`,
+    () => deletePhoto(eventId, fileId)
+  );
+}
+
+// ===== HAPUS FOTO =====
+async function deletePhoto(eventId, fileId) {
+  showLoading("Menghapus foto...");
+  const result = await callAPI("deleteEventPhoto", { eventId, fileId });
+  hideLoading();
+
+  if (result.success) {
+    showToast("Foto berhasil dihapus!", "success");
+
+    // Update grid
+    const grid = document.getElementById(`photos-grid-${eventId}`);
+    if (grid) {
+      grid.innerHTML = renderPhotosGrid(result.photos, eventId);
+    }
+
+    // Update counter
+    const counter = document.querySelector(
+      "#modal-docs .text-gray-300"
+    );
+    if (counter) {
+      counter.textContent = `Foto (${result.photos.length}/5)`;
+    }
+
+  } else {
+    showToast("Gagal hapus: " + result.message, "error");
+  }
+}
+
+// ===== PHOTO VIEWER (fullscreen) =====
+function openPhotoViewer(url, caption) {
+  const existing = document.getElementById("photo-viewer");
+  if (existing) existing.remove();
+
+  const viewer = document.createElement("div");
+  viewer.id = "photo-viewer";
+  viewer.className = "modal-overlay";
+  viewer.style.zIndex = "60";
+  viewer.innerHTML = `
+    <div class="flex flex-col items-center gap-4
+      w-full max-w-lg px-4">
+
+      <!-- Foto -->
+      <div class="relative w-full">
+        <img src="${url}" alt="Dokumentasi"
+          class="w-full rounded-2xl object-contain
+            max-h-[70vh] border border-white/10">
+      </div>
+
+      <!-- Caption -->
+      ${caption ? `
+        <p class="text-gray-300 text-sm text-center">
+          ${caption}
+        </p>
+      ` : ""}
+
+      <!-- Tutup -->
+      <button onclick="document.getElementById('photo-viewer').remove()"
+        class="px-8 py-3 bg-white/10 hover:bg-white/20
+          text-white font-semibold rounded-2xl text-sm
+          border border-white/10 transition">
+        ✕ Tutup
+      </button>
+
+    </div>
+  `;
+
+  // Klik background untuk tutup
+  viewer.addEventListener("click", (e) => {
+    if (e.target === viewer) viewer.remove();
+  });
+
+  document.body.appendChild(viewer);
+}
+
+// ===== HELPER: FILE TO BASE64 =====
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
