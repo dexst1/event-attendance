@@ -152,158 +152,267 @@
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
   <script>
-    let user = null;
-    let qrTimer = null;
-    let countdownVal = CONFIG.QR_REFRESH_INTERVAL;
+  let user = null;
+  let qrTimer = null;
+  let countdownVal = CONFIG.QR_REFRESH_INTERVAL;
+  let userGps = null;
+  let gpsWatcher = null;
 
-    window.onload = async function() {
-      user = await requireAuth({ requireProfile: true });
-      if (!user) return;
+  window.onload = async function() {
+    user = await requireAuth({ requireProfile: true });
+    if (!user) return;
 
-      renderUserInfo();
-      startQRTimer();
-      loadEvents();
-      loadHistory();
+    renderUserInfo();
+    await startGPSWatch();
+    startQRTimer();
+    loadEvents();
+    loadHistory();
+  };
+
+  // ===== USER INFO =====
+  function renderUserInfo() {
+    document.getElementById("app-name").textContent = CONFIG.APP_NAME;
+    document.getElementById("greeting").textContent =
+      "Halo, " + (user.full_name || user.name || "User");
+    document.getElementById("user-name").textContent =
+      user.full_name || user.name || "-";
+    document.getElementById("user-badge").textContent =
+      "Badge: " + (user.badge_number || "-");
+    document.getElementById("user-dept").textContent =
+      user.department || "";
+    document.getElementById("user-role-badge").textContent =
+      user.role || "USER";
+
+    if (user.picture) {
+      document.getElementById("user-avatar").src = user.picture;
+    }
+
+    if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
+      document.getElementById("btn-admin").classList.remove("hidden");
+    }
+  }
+
+  // ===== GPS WATCH =====
+  async function startGPSWatch() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        showGPSStatus("warning",
+          "GPS tidak tersedia di browser ini."
+        );
+        resolve();
+        return;
+      }
+
+      showGPSStatus("loading", "Mengambil lokasi...");
+
+      // Ambil lokasi sekali dulu
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          userGps = {
+            lat      : pos.coords.latitude,
+            lng      : pos.coords.longitude,
+            accuracy : pos.coords.accuracy
+          };
+          showGPSStatus("success",
+            `Lokasi aktif (±${Math.round(pos.coords.accuracy)}m)`
+          );
+          resolve();
+
+          // Lanjut watch untuk update terus
+          gpsWatcher = navigator.geolocation.watchPosition(
+            (p) => {
+              userGps = {
+                lat      : p.coords.latitude,
+                lng      : p.coords.longitude,
+                accuracy : p.coords.accuracy
+              };
+              showGPSStatus("success",
+                `Lokasi aktif (±${Math.round(p.coords.accuracy)}m)`
+              );
+            },
+            () => { /* silent error on watch */ },
+            { enableHighAccuracy: true, maximumAge: 10000 }
+          );
+        },
+        (err) => {
+          let msg = "GPS tidak aktif.";
+          if (err.code === 1) {
+            msg = "Izin lokasi ditolak. Event dengan geofencing tidak bisa diikuti.";
+          } else if (err.code === 2) {
+            msg = "Sinyal GPS lemah.";
+          } else if (err.code === 3) {
+            msg = "GPS timeout. Coba refresh halaman.";
+          }
+          showGPSStatus("warning", msg);
+          resolve();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }
+
+  // ===== GPS STATUS DISPLAY =====
+  function showGPSStatus(type, msg) {
+    // Cek apakah elemen sudah ada
+    let el = document.getElementById("gps-status");
+
+    if (!el) {
+      // Buat elemen baru dan sisipkan sebelum QR card
+      el = document.createElement("div");
+      el.id = "gps-status";
+      const qrCard = document.getElementById("qr-container")
+        .closest(".glass");
+      qrCard.parentNode.insertBefore(el, qrCard);
+    }
+
+    const styles = {
+      loading : "bg-amber-500/10 border border-amber-500/30 text-amber-400",
+      success : "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400",
+      warning : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
     };
 
-    // ===== USER INFO =====
-    function renderUserInfo() {
-      document.getElementById("app-name").textContent = CONFIG.APP_NAME;
-      document.getElementById("greeting").textContent =
-        "Halo, " + (user.full_name || user.name || "User");
-      document.getElementById("user-name").textContent =
-        user.full_name || user.name || "-";
-      document.getElementById("user-badge").textContent =
-        "Badge: " + (user.badge_number || "-");
-      document.getElementById("user-dept").textContent =
-        user.department || "";
-      document.getElementById("user-role-badge").textContent =
-        user.role || "USER";
+    const icons = {
+      loading : `<div class="animate-spin rounded-full h-3 w-3
+                  border-t border-amber-400 flex-shrink-0"></div>`,
+      success : `<span>📍</span>`,
+      warning : `<span>⚠️</span>`
+    };
 
-      if (user.picture) {
-        document.getElementById("user-avatar").src = user.picture;
+    el.className = `flex items-center gap-2 p-3 rounded-xl
+      text-xs ${styles[type]}`;
+    el.innerHTML = `${icons[type]}<span>${msg}</span>`;
+  }
+
+  // ===== QR CODE =====
+  function startQRTimer() {
+    fetchQR();
+    if (qrTimer) clearInterval(qrTimer);
+    countdownVal = CONFIG.QR_REFRESH_INTERVAL;
+
+    qrTimer = setInterval(() => {
+      countdownVal--;
+      document.getElementById("countdown").textContent = countdownVal;
+
+      if (countdownVal <= 0) {
+        fetchQR();
+        countdownVal = CONFIG.QR_REFRESH_INTERVAL;
       }
+    }, 1000);
+  }
 
-      // Tampilkan tombol dashboard jika admin
-      if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
-        document.getElementById("btn-admin").classList.remove("hidden");
-      }
-    }
-
-    // ===== QR CODE =====
-    function startQRTimer() {
-      fetchQR();
-      if (qrTimer) clearInterval(qrTimer);
-      countdownVal = CONFIG.QR_REFRESH_INTERVAL;
-
-      qrTimer = setInterval(() => {
-        countdownVal--;
-        document.getElementById("countdown").textContent = countdownVal;
-
-        if (countdownVal <= 0) {
-          fetchQR();
-          countdownVal = CONFIG.QR_REFRESH_INTERVAL;
-        }
-      }, 1000);
-    }
-
-    async function fetchQR() {
-      const result = await callAPI("generateQRToken");
-
-      if (!result.success || result.error) {
-        document.getElementById("qr-container").innerHTML =
-          `<p class="text-rose-400 text-xs text-center p-4">
-            Gagal generate QR.<br>Refresh halaman.
-          </p>`;
-        return;
-      }
-
-      const container = document.getElementById("qr-container");
-      container.innerHTML = "";
-      new QRCode(container, {
-        text: result.qrData,
-        width: 200,
-        height: 200,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    }
-
-    // ===== EVENTS =====
-    async function loadEvents() {
-      const result = await callAPI("getActiveEvents");
-      const container = document.getElementById("events-list");
-
-      if (!result.success || !result.events || result.events.length === 0) {
-        container.innerHTML = `
-          <p class="text-gray-500 text-xs text-center py-3">
-            Tidak ada event aktif saat ini.
-          </p>`;
-        return;
-      }
-
-      container.innerHTML = result.events.map(event => `
-        <div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-          <div class="w-8 h-8 rounded-lg bg-emerald-600/20 border border-emerald-500/30
-            flex items-center justify-center text-sm flex-shrink-0">
-            📅
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-white text-xs font-medium truncate">${event.title}</p>
-            <p class="text-gray-500 text-[10px]">
-              Sampai: ${formatDateTime(event.endTime)}
-            </p>
-          </div>
-          <span class="px-2 py-1 bg-emerald-500/20 text-emerald-400
-            text-[10px] font-bold rounded-full border border-emerald-500/30
-            flex-shrink-0">
-            AKTIF
-          </span>
-        </div>
-      `).join("");
-    }
-
-    // ===== HISTORY =====
-    async function loadHistory() {
-      const result = await callAPI("getUserAttendanceHistory");
-      const container = document.getElementById("history-list");
-
-      if (!result.success || !result.logs || result.logs.length === 0) {
-        container.innerHTML = `
-          <p class="text-gray-500 text-xs text-center py-3">
-            Belum ada riwayat presensi.
-          </p>`;
-        return;
-      }
-
-      container.innerHTML = result.logs.map(log => `
-        <div class="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
-          <div class="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30
-            flex items-center justify-center text-sm flex-shrink-0">
-            ✅
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-white text-xs font-medium truncate">
-              ${log.eventTitle || "Event"}
-            </p>
-            <p class="text-gray-500 text-[10px]">
-              ${formatDateTime(log.timestamp)}
-            </p>
-          </div>
-          <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400
-            text-[10px] font-bold rounded-full border border-indigo-500/30
-            flex-shrink-0">
-            HADIR
-          </span>
-        </div>
-      `).join("");
-    }
-
-    // Cleanup timer saat halaman ditinggal
-    window.addEventListener("beforeunload", () => {
-      if (qrTimer) clearInterval(qrTimer);
+  async function fetchQR() {
+    const result = await callAPI("generateQRToken", {
+      // Kirim GPS user ke server untuk dimasukkan ke token
+      userLat : userGps ? userGps.lat : null,
+      userLng : userGps ? userGps.lng : null
     });
-  </script>
+
+    if (!result.success || result.error) {
+      document.getElementById("qr-container").innerHTML = `
+        <p class="text-rose-400 text-xs text-center p-4">
+          Gagal generate QR.<br>Refresh halaman.
+        </p>`;
+      return;
+    }
+
+    const container = document.getElementById("qr-container");
+    container.innerHTML = "";
+    new QRCode(container, {
+      text          : result.qrData,
+      width         : 200,
+      height        : 200,
+      colorDark     : "#000000",
+      colorLight    : "#ffffff",
+      correctLevel  : QRCode.CorrectLevel.M
+    });
+  }
+
+  // ===== EVENTS =====
+  async function loadEvents() {
+    const result = await callAPI("getActiveEvents");
+    const container = document.getElementById("events-list");
+
+    if (!result.success || !result.events || result.events.length === 0) {
+      container.innerHTML = `
+        <p class="text-gray-500 text-xs text-center py-3">
+          Tidak ada event aktif saat ini.
+        </p>`;
+      return;
+    }
+
+    container.innerHTML = result.events.map(event => `
+      <div class="flex items-center gap-3 p-3
+        bg-white/5 rounded-xl">
+        <div class="w-8 h-8 rounded-lg bg-emerald-600/20
+          border border-emerald-500/30 flex items-center
+          justify-center text-sm flex-shrink-0">
+          📅
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-xs font-medium truncate">
+            ${event.title}
+          </p>
+          <p class="text-gray-500 text-[10px]">
+            Sampai: ${formatDateTime(event.endTime)}
+            ${event.geofencingEnabled
+              ? `· 📍 Radius ${event.geo_radius}m`
+              : "· 🌐 Tanpa geofencing"
+            }
+          </p>
+        </div>
+        <span class="px-2 py-1 bg-emerald-500/20 text-emerald-400
+          text-[10px] font-bold rounded-full
+          border border-emerald-500/30 flex-shrink-0">
+          AKTIF
+        </span>
+      </div>
+    `).join("");
+  }
+
+  // ===== HISTORY =====
+  async function loadHistory() {
+    const result = await callAPI("getUserAttendanceHistory");
+    const container = document.getElementById("history-list");
+
+    if (!result.success || !result.logs || result.logs.length === 0) {
+      container.innerHTML = `
+        <p class="text-gray-500 text-xs text-center py-3">
+          Belum ada riwayat presensi.
+        </p>`;
+      return;
+    }
+
+    container.innerHTML = result.logs.map(log => `
+      <div class="flex items-center gap-3 p-3
+        bg-white/5 rounded-xl">
+        <div class="w-8 h-8 rounded-lg bg-indigo-600/20
+          border border-indigo-500/30 flex items-center
+          justify-center text-sm flex-shrink-0">
+          ✅
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-white text-xs font-medium truncate">
+            ${log.eventTitle || "Event"}
+          </p>
+          <p class="text-gray-500 text-[10px]">
+            ${formatDateTime(log.timestamp)}
+          </p>
+        </div>
+        <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400
+          text-[10px] font-bold rounded-full
+          border border-indigo-500/30 flex-shrink-0">
+          HADIR
+        </span>
+      </div>
+    `).join("");
+  }
+
+  // Cleanup saat halaman ditinggal
+  window.addEventListener("beforeunload", () => {
+    if (qrTimer) clearInterval(qrTimer);
+    if (gpsWatcher) navigator.geolocation.clearWatch(gpsWatcher);
+  });
+</script>
+
 </body>
 </html>
