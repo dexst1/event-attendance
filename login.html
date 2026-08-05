@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — Event Attendance</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"></script>  
   <style>
     body { background-color: #0f0f1a; }
     .glass {
@@ -96,171 +96,195 @@
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-  <script>
-    // Isi nama app dari config
-    document.getElementById("app-name").textContent = CONFIG.APP_NAME;
-    document.getElementById("org-name").textContent = CONFIG.ORG_NAME;
+  <script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
-    // Jika sudah login, langsung redirect
-    window.onload = function() {
-      if (isLoggedIn()) {
-        const user = getStoredUser();
-        redirectAfterLogin(user);
-      }
-      initGoogleSignIn();
-    };
+<script>
+  // Isi nama app dari config
+  document.getElementById("app-name").textContent = CONFIG.APP_NAME;
+  document.getElementById("org-name").textContent = CONFIG.ORG_NAME;
 
-    function initGoogleSignIn() {
-      // Tunggu library Google siap
-      const checkGoogle = setInterval(() => {
-        if (typeof google !== "undefined" && google.accounts) {
-          clearInterval(checkGoogle);
-          google.accounts.id.initialize({
-            client_id: CONFIG.GOOGLE_CLIENT_ID,
-            callback: handleCredentialResponse,
-            auto_select: false
-          });
-        }
-      }, 100);
+  // Jika sudah login, langsung redirect
+  window.onload = function() {
+    if (isLoggedIn()) {
+      const user = getStoredUser();
+      redirectAfterLogin(user);
+      return;
     }
+    // Tidak perlu init One Tap, langsung siapkan OAuth popup
+  };
 
-    function handleLogin() {
-      const btn = document.getElementById("btn-login");
-      btn.disabled = true;
-      btn.innerHTML = `
-        <div class="animate-spin rounded-full h-4 w-4 
-          border-t-2 border-gray-400"></div>
-        <span>Menghubungkan...</span>
-      `;
-      showStatus("Membuka jendela login Google...", "info");
+  // ===== HANDLE LOGIN BUTTON =====
+  function handleLogin() {
+    const btn = document.getElementById("btn-login");
+    btn.disabled = true;
+    btn.innerHTML = `
+      <div class="animate-spin rounded-full h-4 w-4
+        border-t-2 border-gray-400"></div>
+      <span>Menghubungkan...</span>
+    `;
 
+    // Tunggu library Google siap
+    const checkGoogle = setInterval(() => {
       if (typeof google !== "undefined" && google.accounts) {
-        google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // Fallback: gunakan popup manual
-            loginWithPopup();
-          }
-        });
-      } else {
-        showStatus("Library Google belum siap. Coba refresh halaman.", "error");
-        resetButton();
+        clearInterval(checkGoogle);
+        startOAuthFlow();
       }
-    }
+    }, 100);
 
-    function loginWithPopup() {
+    // Timeout 10 detik
+    setTimeout(() => {
+      clearInterval(checkGoogle);
+      showStatus("Library Google gagal dimuat. Refresh halaman.", "error");
+      resetButton();
+    }, 10000);
+  }
+
+  // ===== OAUTH POPUP FLOW =====
+  function startOAuthFlow() {
+    try {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: CONFIG.GOOGLE_CLIENT_ID,
         scope: "openid email profile",
         callback: async (tokenResponse) => {
           if (tokenResponse.error) {
-            showStatus("Login dibatalkan.", "error");
+            showStatus("Login dibatalkan atau gagal.", "error");
             resetButton();
             return;
           }
           await fetchUserInfo(tokenResponse.access_token);
-        }
-      });
-      client.requestAccessToken({ prompt: "select_account" });
-    }
-
-    async function handleCredentialResponse(response) {
-      try {
-        // Decode JWT token dari Google
-        const payload = parseJwt(response.credential);
-        await processLogin(payload.email, payload.name, payload.picture, response.credential);
-      } catch(err) {
-        showStatus("Gagal memproses login: " + err.message, "error");
-        resetButton();
-      }
-    }
-
-    async function fetchUserInfo(accessToken) {
-      try {
-        const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const info = await res.json();
-        await processLogin(info.email, info.name, info.picture, accessToken);
-      } catch(err) {
-        showStatus("Gagal mengambil info user: " + err.message, "error");
-        resetButton();
-      }
-    }
-
-    async function processLogin(email, name, picture, token) {
-      showStatus("Memverifikasi akun...", "info");
-      try {
-        const result = await callAPIWithToken(token, email, "getCurrentUser");
-
-        if (result.error) {
-          showStatus("Gagal: " + result.message, "error");
+        },
+        error_callback: (err) => {
+          showStatus("Login gagal: " + (err.message || err.type), "error");
           resetButton();
-          return;
         }
-
-        // Simpan data user ke session
-        storeUser({
-          ...result,
-          name: name,
-          picture: picture,
-          idToken: token
-        });
-
-        showStatus("Login berhasil! Mengalihkan...", "success");
-        setTimeout(() => redirectAfterLogin(result), 1000);
-
-      } catch(err) {
-        showStatus("Error: " + err.message, "error");
-        resetButton();
-      }
-    }
-
-    // Call API khusus login (belum ada token di session)
-    async function callAPIWithToken(token, email, action) {
-      const response = await fetch(CONFIG.GAS_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action, email, idToken: token })
       });
-      return await response.json();
-    }
 
-    function redirectAfterLogin(user) {
-      if (!user.isProfileComplete) {
-        window.location.href = "profile.html";
-      } else if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
-        window.location.href = "admin.html";
-      } else {
-        window.location.href = "index.html";
+      client.requestAccessToken({ prompt: "select_account" });
+
+    } catch(err) {
+      showStatus("Error: " + err.message, "error");
+      resetButton();
+    }
+  }
+
+  // ===== AMBIL INFO USER DARI GOOGLE =====
+  async function fetchUserInfo(accessToken) {
+    showStatus("Mengambil info akun...", "info");
+    try {
+      const res = await fetch(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (!res.ok) throw new Error("Gagal mengambil info user dari Google.");
+
+      const info = await res.json();
+
+      if (!info.email) throw new Error("Email tidak ditemukan.");
+      if (!info.email_verified) throw new Error("Email belum diverifikasi Google.");
+
+      await processLogin(
+        info.email,
+        info.name || info.email,
+        info.picture || "",
+        accessToken
+      );
+
+    } catch(err) {
+      showStatus("Gagal: " + err.message, "error");
+      resetButton();
+    }
+  }
+
+  // ===== PROSES LOGIN KE GAS =====
+  async function processLogin(email, name, picture, accessToken) {
+    showStatus("Memverifikasi akun di server...", "info");
+    try {
+      const result = await callAPILogin(accessToken, email, "getCurrentUser");
+
+      if (!result || result.error) {
+        showStatus(
+          "Gagal verifikasi: " + (result?.message || "Server error"),
+          "error"
+        );
+        resetButton();
+        return;
       }
+
+      // Simpan ke session
+      storeUser({
+        ...result,
+        name       : name,
+        picture    : picture,
+        idToken    : accessToken,
+        tokenIssuedAt: Date.now()
+      });
+
+      showStatus("Login berhasil! Mengalihkan...", "success");
+      setTimeout(() => redirectAfterLogin(result), 1000);
+
+    } catch(err) {
+      showStatus("Error server: " + err.message, "error");
+      resetButton();
+    }
+  }
+
+  // ===== CALL API KHUSUS LOGIN =====
+  // Tidak pakai callAPI() biasa karena session belum ada
+  async function callAPILogin(accessToken, email, action) {
+    const response = await fetch(CONFIG.GAS_API_URL, {
+      method  : "POST",
+      headers : { "Content-Type": "text/plain" },
+      body    : JSON.stringify({
+        action,
+        email,
+        idToken    : accessToken,
+        accessToken: accessToken
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    function parseJwt(token) {
-      const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-      return JSON.parse(atob(base64));
-    }
+    return await response.json();
+  }
 
-    function showStatus(msg, type) {
-      const el = document.getElementById("status");
-      const colors = {
-        info    : "bg-indigo-500/20 text-indigo-300",
-        success : "bg-emerald-500/20 text-emerald-300",
-        error   : "bg-rose-500/20 text-rose-300"
-      };
-      el.className = `w-full p-3 rounded-xl text-xs text-center ${colors[type]}`;
-      el.textContent = msg;
-      el.classList.remove("hidden");
+  // ===== REDIRECT SETELAH LOGIN =====
+  function redirectAfterLogin(user) {
+    if (!user.isProfileComplete) {
+      window.location.href = "profile.html";
+    } else if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
+      window.location.href = "admin.html";
+    } else {
+      window.location.href = "index.html";
     }
+  }
 
-    function resetButton() {
-      const btn = document.getElementById("btn-login");
-      btn.disabled = false;
-      btn.innerHTML = `
-        <img src="https://developers.google.com/identity/images/g-logo.png"
-          alt="Google" class="w-5 h-5">
-        <span>Masuk dengan Google</span>
-      `;
-    }
-  </script>
+  // ===== UI HELPERS =====
+  function showStatus(msg, type) {
+    const el = document.getElementById("status");
+    const colors = {
+      info    : "bg-indigo-500/20 text-indigo-300",
+      success : "bg-emerald-500/20 text-emerald-300",
+      error   : "bg-rose-500/20 text-rose-300"
+    };
+    el.className = `w-full p-3 rounded-xl text-xs text-center ${colors[type]}`;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+
+  function resetButton() {
+    const btn = document.getElementById("btn-login");
+    btn.disabled = false;
+    btn.innerHTML = `
+      <img src="https://developers.google.com/identity/images/g-logo.png"
+        alt="Google" class="w-5 h-5">
+      <span>Masuk dengan Google</span>
+    `;
+  }
+</script>
 </body>
 </html>
