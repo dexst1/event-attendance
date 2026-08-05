@@ -194,354 +194,522 @@
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
   <script>
-    // ===== STATE =====
-    let stream = null;
-    let facing = "environment";
-    let loopId = null;
-    let lastScan = 0;
-    let scanDone = false;
-    let scanCount = 0;
-    let torchOn = false;
-    let user = null;
+  // ===== STATE =====
+  let stream = null;
+  let facing = "environment";
+  let loopId = null;
+  let lastScan = 0;
+  let scanDone = false;
+  let scanCount = 0;
+  let torchOn = false;
+  let user = null;
+  let adminGps = null;
+  let gpsWatcher = null;
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
 
-    // ===== INIT =====
-    window.onload = async function() {
-      user = await requireAuth({
-        requireProfile: true,
-        requireAdmin: true
-      });
-      if (!user) return;
+  // ===== INIT =====
+  window.onload = async function() {
+    user = await requireAuth({
+      requireProfile : true,
+      requireAdmin   : true
+    });
+    if (!user) return;
 
-      await loadEvents();
-      startCamera();
+    await loadEvents();
+    await startGPSWatch();
+    startCamera();
+  };
+
+  // ===== GPS WATCH =====
+  async function startGPSWatch() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        showGPSBadge("warning", "GPS tidak tersedia");
+        resolve();
+        return;
+      }
+
+      showGPSBadge("loading", "Mengambil lokasi...");
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          adminGps = {
+            lat      : pos.coords.latitude,
+            lng      : pos.coords.longitude,
+            accuracy : pos.coords.accuracy
+          };
+          showGPSBadge("success",
+            `📍 Lokasi aktif (±${Math.round(pos.coords.accuracy)}m)`
+          );
+          resolve();
+
+          // Watch terus untuk update
+          gpsWatcher = navigator.geolocation.watchPosition(
+            (p) => {
+              adminGps = {
+                lat      : p.coords.latitude,
+                lng      : p.coords.longitude,
+                accuracy : p.coords.accuracy
+              };
+              showGPSBadge("success",
+                `📍 Lokasi aktif (±${Math.round(p.coords.accuracy)}m)`
+              );
+            },
+            () => { /* silent */ },
+            { enableHighAccuracy: true, maximumAge: 10000 }
+          );
+        },
+        (err) => {
+          let msg = "GPS tidak aktif";
+          if (err.code === 1) msg = "⚠️ Izin GPS ditolak";
+          if (err.code === 3) msg = "⚠️ GPS timeout";
+          showGPSBadge("warning", msg);
+          resolve();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }
+
+  // ===== GPS BADGE =====
+  function showGPSBadge(type, msg) {
+    let el = document.getElementById("gps-badge");
+
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "gps-badge";
+      el.className = "glass rounded-2xl p-3";
+
+      // Sisipkan setelah header
+      const header = document.querySelector("header");
+      header.parentNode.insertBefore(el, header.nextSibling);
+    }
+
+    const styles = {
+      loading : "text-amber-400",
+      success : "text-emerald-400",
+      warning : "text-rose-400"
     };
 
-    // ===== LOAD EVENTS =====
-    async function loadEvents() {
-      const result = await callAPI("getActiveEvents");
-      const sel = document.getElementById("select-event");
+    const icons = {
+      loading : `<div class="animate-spin rounded-full h-3 w-3
+                  border-t border-amber-400"></div>`,
+      success : `<span>✅</span>`,
+      warning : `<span>⚠️</span>`
+    };
 
-      if (!result.success || !result.events || result.events.length === 0) {
-        sel.innerHTML = `
-          <option value="" class="bg-gray-900">
-            Tidak ada event aktif
-          </option>`;
-        return;
-      }
+    el.innerHTML = `
+      <div class="flex items-center gap-2 text-xs ${styles[type]}">
+        ${icons[type]}
+        <span>${msg}</span>
+        ${type === "warning"
+          ? `<button onclick="startGPSWatch()"
+              class="ml-auto px-2 py-1 bg-white/10
+                rounded-lg text-[10px] hover:bg-white/20 transition">
+              Coba Lagi
+            </button>`
+          : ""
+        }
+      </div>
+    `;
+  }
 
+  // ===== LOAD EVENTS =====
+  async function loadEvents() {
+    const result = await callAPI("getActiveEvents");
+    const sel = document.getElementById("select-event");
+
+    if (!result.success || !result.events || result.events.length === 0) {
       sel.innerHTML = `
-        <option value="" class="bg-gray-900">-- Pilih Event --</option>
-        ${result.events.map(e => `
-          <option value="${e.id}" class="bg-gray-900">
-            ${e.title}
-          </option>
-        `).join("")}
-      `;
+        <option value="" class="bg-gray-900">
+          Tidak ada event aktif
+        </option>`;
+      return;
     }
 
-    // ===== KAMERA =====
-    async function startCamera() {
-      showCamState("loading");
+    sel.innerHTML = `
+      <option value="" class="bg-gray-900">-- Pilih Event --</option>
+      ${result.events.map(e => `
+        <option value="${e.id}" class="bg-gray-900"
+          data-geofencing="${e.geofencingEnabled}"
+          data-radius="${e.geo_radius}">
+          ${e.title}
+          ${e.geofencingEnabled ? `(📍 ${e.geo_radius}m)` : ""}
+        </option>
+      `).join("")}
+    `;
 
-      // Cek dukungan browser
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showCamError(
-          "Browser ini tidak mendukung akses kamera.\n" +
-          "Gunakan Chrome atau Safari versi terbaru."
-        );
-        return;
-      }
+    // Event listener saat pilih event
+    sel.addEventListener("change", onEventSelected);
+  }
 
-      try {
-        // Stop stream lama
-        if (stream) {
-          stream.getTracks().forEach(t => t.stop());
-          stream = null;
-        }
-        if (loopId) {
-          cancelAnimationFrame(loopId);
-          clearInterval(loopId);
-          loopId = null;
-        }
+  // ===== EVENT SELECTED HANDLER =====
+  function onEventSelected() {
+    const sel = document.getElementById("select-event");
+    const selected = sel.options[sel.selectedIndex];
 
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: facing === "environment"
-              ? { ideal: "environment" } : "user",
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+    if (!selected || !selected.value) return;
 
-        video.srcObject = stream;
-        await new Promise((resolve, reject) => {
-          video.onloadedmetadata = () => video.play().then(resolve).catch(reject);
-          setTimeout(() => reject(new Error("Timeout kamera")), 10000);
-        });
+    const geofencingEnabled = selected.dataset.geofencing === "true";
+    const radius = selected.dataset.radius;
 
-        showCamState("active");
-        scanDone = false;
-        beginScan();
-
-      } catch(e) {
-        handleCameraError(e);
-      }
+    // Tampilkan info geofencing
+    let infoEl = document.getElementById("geofencing-info");
+    if (!infoEl) {
+      infoEl = document.createElement("div");
+      infoEl.id = "geofencing-info";
+      const sel = document.getElementById("select-event");
+      sel.parentNode.appendChild(infoEl);
     }
 
-    function handleCameraError(e) {
-      let msg = "Gagal mengakses kamera.";
-      if (e.name === "NotAllowedError") {
-        msg = "Izin kamera ditolak.\n\nCara mengizinkan:\n" +
-              "Klik ikon kunci di address bar → Izinkan Kamera → Refresh halaman.";
-      } else if (e.name === "NotFoundError") {
-        msg = "Kamera tidak ditemukan di perangkat ini.";
-      } else if (e.name === "NotReadableError") {
-        msg = "Kamera sedang digunakan aplikasi lain.\n" +
-              "Tutup aplikasi lain dan coba lagi.";
-      } else if (e.name === "OverconstrainedError") {
-        // Coba fallback
-        tryFallbackCamera();
-        return;
-      } else {
-        msg = e.message || e.name;
-      }
-      showCamError(msg);
-    }
-
-    async function tryFallbackCamera() {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
-        video.srcObject = stream;
-        await new Promise(resolve => {
-          video.onloadedmetadata = () => video.play().then(resolve);
-        });
-        showCamState("active");
-        scanDone = false;
-        beginScan();
-      } catch(e) {
-        showCamError("Kamera tidak dapat diakses: " + e.message);
-      }
-    }
-
-    function showCamState(state) {
-      document.getElementById("cam-loading").classList.add("hidden");
-      document.getElementById("cam-error").classList.add("hidden");
-      document.getElementById("video-wrap").classList.add("hidden");
-      document.getElementById("cam-controls").classList.add("hidden");
-
-      if (state === "loading") {
-        document.getElementById("cam-loading").classList.remove("hidden");
-      } else if (state === "error") {
-        document.getElementById("cam-error").classList.remove("hidden");
-      } else if (state === "active") {
-        document.getElementById("video-wrap").classList.remove("hidden");
-        document.getElementById("cam-controls").classList.remove("hidden");
-      }
-    }
-
-    function showCamError(msg) {
-      showCamState("error");
-      document.getElementById("cam-error-msg").textContent = msg;
-    }
-
-    function switchCamera() {
-      facing = facing === "environment" ? "user" : "environment";
-      scanDone = false;
-      startCamera();
-    }
-
-    async function toggleTorch() {
-      if (!stream) return;
-      const track = stream.getVideoTracks()[0];
-      if (!track) return;
-      try {
-        torchOn = !torchOn;
-        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-        document.getElementById("btn-torch").textContent = torchOn ? "💡" : "🔦";
-      } catch(e) {
-        showToast("Senter tidak tersedia di perangkat ini", "warning");
-        torchOn = false;
-      }
-    }
-
-    // ===== SCAN ENGINE =====
-    function beginScan() {
-      if ("BarcodeDetector" in window) {
-        const detector = new BarcodeDetector({ formats: ["qr_code"] });
-        const loop = async () => {
-          if (scanDone) return;
-          if (video.readyState >= video.HAVE_ENOUGH_DATA) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            try {
-              const codes = await detector.detect(canvas);
-              if (codes.length > 0) {
-                const now = Date.now();
-                if (now - lastScan > 2000) {
-                  lastScan = now;
-                  handleScanResult(codes[0].rawValue);
-                  return;
-                }
-              }
-            } catch(e) { /* ignore */ }
-          }
-          loopId = requestAnimationFrame(loop);
-        };
-        loopId = requestAnimationFrame(loop);
-      } else {
-        loadJsQR(() => {
-          loopId = setInterval(() => {
-            if (scanDone) { clearInterval(loopId); return; }
-            if (video.readyState < video.HAVE_ENOUGH_DATA) return;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height);
-            if (code && code.data) {
-              const now = Date.now();
-              if (now - lastScan > 2000) {
-                lastScan = now;
-                handleScanResult(code.data);
-              }
+    if (geofencingEnabled) {
+      const gpsOk = adminGps !== null;
+      infoEl.innerHTML = `
+        <div class="flex items-center gap-2 mt-2 p-2
+          rounded-lg text-xs
+          ${gpsOk
+            ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+            : "bg-rose-500/10 border border-rose-500/30 text-rose-400"
+          }">
+          <span>${gpsOk ? "✅" : "❌"}</span>
+          <span>
+            Geofencing aktif · Radius ${radius}m ·
+            GPS Scanner: ${gpsOk
+              ? `aktif (±${Math.round(adminGps.accuracy)}m)`
+              : "TIDAK AKTIF — presensi akan ditolak!"
             }
-          }, 250);
-        });
-      }
-    }
-
-    function loadJsQR(callback) {
-      if (typeof jsQR !== "undefined") { callback(); return; }
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
-      s.onload = callback;
-      s.onerror = () => showCamError("Gagal memuat library scanner.");
-      document.head.appendChild(s);
-    }
-
-    // ===== HANDLE HASIL SCAN =====
-    async function handleScanResult(text) {
-      if (!text) return;
-
-      const eventId = document.getElementById("select-event").value;
-      if (!eventId) {
-        showToast("Pilih event terlebih dahulu!", "warning");
-        return;
-      }
-
-      // Validasi JSON
-      try { JSON.parse(text); } catch(e) {
-        showToast("QR tidak valid, bukan format yang dikenali", "error");
-        return;
-      }
-
-      // Tampilkan loading hasil
-      showResult("loading", "Memverifikasi...");
-
-      const result = await callAPI("processAttendance", {
-        qrToken: text,
-        eventId: eventId
-      });
-
-      if (result.success) {
-        showResult("success", result.message);
-        addToLog(true, result.message);
-        showToast("Presensi berhasil!", "success");
-      } else {
-        showResult("error", result.message);
-        addToLog(false, result.message);
-        showToast(result.message, "error");
-      }
-
-      // Lanjut scan setelah 3 detik
-      setTimeout(() => {
-        hideResult();
-        scanDone = false;
-        beginScan();
-      }, 3000);
-    }
-
-    // ===== RESULT DISPLAY =====
-    function showResult(type, message) {
-      const container = document.getElementById("result-container");
-      container.classList.remove("hidden");
-
-      const styles = {
-        loading : "bg-indigo-500/20 border-indigo-500/30 text-indigo-300",
-        success : "bg-emerald-500/20 border-emerald-500/30 text-emerald-300",
-        error   : "bg-rose-500/20 border-rose-500/30 text-rose-300"
-      };
-      const icons = {
-        loading : "⏳", success : "✅", error : "❌"
-      };
-
-      container.innerHTML = `
-        <div class="result-card glass border rounded-2xl p-4 
-          ${styles[type]} space-y-1">
-          <p class="font-bold text-sm">
-            ${icons[type]} ${type === "loading" ? "Memproses" :
-              type === "success" ? "PRESENSI VALID" : "DITOLAK"}
-          </p>
-          <p class="text-xs leading-relaxed opacity-80">
-            ${message.replace(/\n/g, "<br>")}
-          </p>
+          </span>
+        </div>
+      `;
+    } else {
+      infoEl.innerHTML = `
+        <div class="flex items-center gap-2 mt-2 p-2
+          rounded-lg text-xs
+          bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
+          <span>🌐</span>
+          <span>Event ini tidak menggunakan geofencing</span>
         </div>
       `;
     }
+  }
 
-    function hideResult() {
-      document.getElementById("result-container").classList.add("hidden");
-      document.getElementById("result-container").innerHTML = "";
+  // ===== KAMERA =====
+  async function startCamera() {
+    showCamState("loading");
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showCamError(
+        "Browser ini tidak mendukung akses kamera.\n" +
+        "Gunakan Chrome atau Safari versi terbaru."
+      );
+      return;
     }
 
-    // ===== LOG =====
-    function addToLog(success, message) {
-      scanCount++;
-      document.getElementById("scan-count").textContent = scanCount + " scan";
-
-      const log = document.getElementById("scan-log");
-      const time = new Date().toLocaleTimeString("id-ID");
-      const firstLine = message.split("\n")[0];
-
-      // Hapus pesan kosong
-      const empty = log.querySelector("p");
-      if (empty) empty.remove();
-
-      const item = document.createElement("div");
-      item.className = `flex items-center gap-3 p-3 rounded-xl
-        ${success ? "bg-emerald-500/10" : "bg-rose-500/10"}`;
-      item.innerHTML = `
-        <span class="text-lg flex-shrink-0">${success ? "✅" : "❌"}</span>
-        <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium truncate
-            ${success ? "text-emerald-300" : "text-rose-300"}">
-            ${firstLine}
-          </p>
-          <p class="text-[10px] text-gray-500">${time}</p>
-        </div>
-      `;
-
-      // Tambah di atas
-      log.insertBefore(item, log.firstChild);
-    }
-
-    // Cleanup saat halaman ditinggal
-    window.addEventListener("beforeunload", () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
+    try {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
       if (loopId) {
         cancelAnimationFrame(loopId);
         clearInterval(loopId);
+        loopId = null;
       }
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode : facing === "environment"
+            ? { ideal: "environment" } : "user",
+          width  : { ideal: 1280 },
+          height : { ideal: 720 }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+      await new Promise((resolve, reject) => {
+        video.onloadedmetadata = () => video.play().then(resolve).catch(reject);
+        setTimeout(() => reject(new Error("Timeout kamera")), 10000);
+      });
+
+      showCamState("active");
+      scanDone = false;
+      beginScan();
+
+    } catch(e) {
+      handleCameraError(e);
+    }
+  }
+
+  function handleCameraError(e) {
+    let msg = "Gagal mengakses kamera.";
+    if (e.name === "NotAllowedError") {
+      msg = "Izin kamera ditolak.\n\n" +
+            "Klik ikon kunci di address bar → " +
+            "Izinkan Kamera → Refresh halaman.";
+    } else if (e.name === "NotFoundError") {
+      msg = "Kamera tidak ditemukan di perangkat ini.";
+    } else if (e.name === "NotReadableError") {
+      msg = "Kamera sedang digunakan aplikasi lain.";
+    } else if (e.name === "OverconstrainedError") {
+      tryFallbackCamera();
+      return;
+    } else {
+      msg = e.message || e.name;
+    }
+    showCamError(msg);
+  }
+
+  async function tryFallbackCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: true, audio: false
+      });
+      video.srcObject = stream;
+      await new Promise(resolve => {
+        video.onloadedmetadata = () => video.play().then(resolve);
+      });
+      showCamState("active");
+      scanDone = false;
+      beginScan();
+    } catch(e) {
+      showCamError("Kamera tidak dapat diakses: " + e.message);
+    }
+  }
+
+  function showCamState(state) {
+    document.getElementById("cam-loading").classList.add("hidden");
+    document.getElementById("cam-error").classList.add("hidden");
+    document.getElementById("video-wrap").classList.add("hidden");
+    document.getElementById("cam-controls").classList.add("hidden");
+
+    if (state === "loading") {
+      document.getElementById("cam-loading").classList.remove("hidden");
+    } else if (state === "error") {
+      document.getElementById("cam-error").classList.remove("hidden");
+    } else if (state === "active") {
+      document.getElementById("video-wrap").classList.remove("hidden");
+      document.getElementById("cam-controls").classList.remove("hidden");
+    }
+  }
+
+  function showCamError(msg) {
+    showCamState("error");
+    document.getElementById("cam-error-msg").textContent = msg;
+  }
+
+  function switchCamera() {
+    facing = facing === "environment" ? "user" : "environment";
+    scanDone = false;
+    startCamera();
+  }
+
+  async function toggleTorch() {
+    if (!stream) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    try {
+      torchOn = !torchOn;
+      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+      document.getElementById("btn-torch").textContent =
+        torchOn ? "💡" : "🔦";
+    } catch(e) {
+      showToast("Senter tidak tersedia di perangkat ini", "warning");
+      torchOn = false;
+    }
+  }
+
+  // ===== SCAN ENGINE =====
+  function beginScan() {
+    if ("BarcodeDetector" in window) {
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const loop = async () => {
+        if (scanDone) return;
+        if (video.readyState >= video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          try {
+            const codes = await detector.detect(canvas);
+            if (codes.length > 0) {
+              const now = Date.now();
+              if (now - lastScan > 2000) {
+                lastScan = now;
+                handleScanResult(codes[0].rawValue);
+                return;
+              }
+            }
+          } catch(e) { /* ignore */ }
+        }
+        loopId = requestAnimationFrame(loop);
+      };
+      loopId = requestAnimationFrame(loop);
+    } else {
+      loadJsQR(() => {
+        loopId = setInterval(() => {
+          if (scanDone) { clearInterval(loopId); return; }
+          if (video.readyState < video.HAVE_ENOUGH_DATA) return;
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          const imageData = ctx.getImageData(
+            0, 0, canvas.width, canvas.height
+          );
+          const code = jsQR(
+            imageData.data,
+            imageData.width,
+            imageData.height
+          );
+          if (code && code.data) {
+            const now = Date.now();
+            if (now - lastScan > 2000) {
+              lastScan = now;
+              handleScanResult(code.data);
+            }
+          }
+        }, 250);
+      });
+    }
+  }
+
+  function loadJsQR(callback) {
+    if (typeof jsQR !== "undefined") { callback(); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+    s.onload = callback;
+    s.onerror = () => showCamError("Gagal memuat library scanner.");
+    document.head.appendChild(s);
+  }
+
+  // ===== HANDLE HASIL SCAN =====
+  async function handleScanResult(text) {
+    if (!text) return;
+
+    const eventId = document.getElementById("select-event").value;
+    if (!eventId) {
+      showToast("Pilih event terlebih dahulu!", "warning");
+      return;
+    }
+
+    // Validasi JSON
+    try { JSON.parse(text); } catch(e) {
+      showToast("QR tidak valid", "error");
+      return;
+    }
+
+    scanDone = true;
+    showResult("loading", "Memverifikasi...");
+
+    // Kirim GPS admin ke GAS
+    const result = await callAPI("processAttendance", {
+      qrToken  : text,
+      eventId  : eventId,
+      adminGps : adminGps ? {
+        lat : adminGps.lat,
+        lng : adminGps.lng
+      } : null
     });
-  </script>
+
+    if (result.success) {
+      showResult("success", result.message);
+      addToLog(true, result.message);
+      showToast("Presensi berhasil!", "success");
+    } else {
+      showResult("error", result.message);
+      addToLog(false, result.message);
+      showToast(result.message, "error");
+    }
+
+    // Lanjut scan setelah 3 detik
+    setTimeout(() => {
+      hideResult();
+      scanDone = false;
+      beginScan();
+    }, 3000);
+  }
+
+  // ===== RESULT DISPLAY =====
+  function showResult(type, message) {
+    const container = document.getElementById("result-container");
+    container.classList.remove("hidden");
+
+    const styles = {
+      loading : "bg-indigo-500/20 border-indigo-500/30 text-indigo-300",
+      success : "bg-emerald-500/20 border-emerald-500/30 text-emerald-300",
+      error   : "bg-rose-500/20 border-rose-500/30 text-rose-300"
+    };
+    const icons = {
+      loading : "⏳", success : "✅", error : "❌"
+    };
+
+    container.innerHTML = `
+      <div class="result-card glass border rounded-2xl p-4
+        ${styles[type]} space-y-1">
+        <p class="font-bold text-sm">
+          ${icons[type]} ${
+            type === "loading" ? "Memproses" :
+            type === "success" ? "PRESENSI VALID" : "DITOLAK"
+          }
+        </p>
+        <p class="text-xs leading-relaxed opacity-80">
+          ${message.replace(/\n/g, "<br>")}
+        </p>
+      </div>
+    `;
+  }
+
+  function hideResult() {
+    const el = document.getElementById("result-container");
+    el.classList.add("hidden");
+    el.innerHTML = "";
+  }
+
+  // ===== LOG =====
+  function addToLog(success, message) {
+    scanCount++;
+    document.getElementById("scan-count").textContent =
+      scanCount + " scan";
+
+    const log = document.getElementById("scan-log");
+    const time = new Date().toLocaleTimeString("id-ID");
+    const firstLine = message.split("\n")[0];
+
+    const empty = log.querySelector("p");
+    if (empty) empty.remove();
+
+    const item = document.createElement("div");
+    item.className = `flex items-center gap-3 p-3 rounded-xl
+      ${success ? "bg-emerald-500/10" : "bg-rose-500/10"}`;
+    item.innerHTML = `
+      <span class="text-lg flex-shrink-0">
+        ${success ? "✅" : "❌"}
+      </span>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-medium truncate
+          ${success ? "text-emerald-300" : "text-rose-300"}">
+          ${firstLine}
+        </p>
+        <p class="text-[10px] text-gray-500">${time}</p>
+      </div>
+    `;
+
+    log.insertBefore(item, log.firstChild);
+  }
+
+  // Cleanup saat halaman ditinggal
+  window.addEventListener("beforeunload", () => {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (loopId) {
+      cancelAnimationFrame(loopId);
+      clearInterval(loopId);
+    }
+    if (gpsWatcher) {
+      navigator.geolocation.clearWatch(gpsWatcher);
+    }
+  });
+</script>
 </body>
 </html>
