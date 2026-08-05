@@ -59,8 +59,13 @@ async function loadRecentAttendance() {
       <!-- Info -->
       <div class="flex-1 min-w-0">
         <p class="text-white text-xs font-medium truncate">
-          ${log.badge_number || "-"} · ${log.email || "-"}
-        </p>
+  ${log.full_name || log.badge_number || "-"}
+</p>
+<p class="text-gray-500 text-[10px]">
+  Badge: ${log.badge_number || "-"} ·
+  ${log.eventTitle || "Event"} ·
+  ${formatDateTime(log.timestamp)}
+</p>
         <p class="text-gray-500 text-[10px]">
           ${log.eventTitle || "Event"} ·
           ${formatDateTime(log.timestamp)}

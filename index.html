@@ -442,41 +442,45 @@
 
   // ===== HISTORY =====
   async function loadHistory() {
-    const result = await callAPI("getUserAttendanceHistory");
-    const container = document.getElementById("history-list");
+  const result = await callAPI("getUserAttendanceHistory");
+  const container = document.getElementById("history-list");
 
-    if (!result.success || !result.logs || result.logs.length === 0) {
-      container.innerHTML = `
-        <p class="text-gray-500 text-xs text-center py-3">
-          Belum ada riwayat presensi.
-        </p>`;
-      return;
-    }
-
-    container.innerHTML = result.logs.map(log => `
-      <div class="flex items-center gap-3 p-3
-        bg-white/5 rounded-xl">
-        <div class="w-8 h-8 rounded-lg bg-indigo-600/20
-          border border-indigo-500/30 flex items-center
-          justify-center text-sm flex-shrink-0">
-          ✅
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-white text-xs font-medium truncate">
-            ${log.eventTitle || "Event"}
-          </p>
-          <p class="text-gray-500 text-[10px]">
-            ${formatDateTime(log.timestamp)}
-          </p>
-        </div>
-        <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400
-          text-[10px] font-bold rounded-full
-          border border-indigo-500/30 flex-shrink-0">
-          HADIR
-        </span>
-      </div>
-    `).join("");
+  if (!result.success || !result.logs || result.logs.length === 0) {
+    container.innerHTML = `
+      <p class="text-gray-500 text-xs text-center py-3">
+        Belum ada riwayat presensi.
+      </p>`;
+    return;
   }
+
+  container.innerHTML = result.logs.map(log => `
+    <div class="flex items-center gap-3 p-3
+      bg-white/5 rounded-xl">
+
+      <div class="w-8 h-8 rounded-lg bg-indigo-600/20
+        border border-indigo-500/30 flex items-center
+        justify-center text-sm flex-shrink-0">
+        ✅
+      </div>
+
+      <div class="flex-1 min-w-0">
+        <p class="text-white text-xs font-medium truncate">
+          ${log.eventTitle || "Event"}
+        </p>
+        <p class="text-gray-500 text-[10px]">
+          ${formatDateTime(log.timestamp)}
+        </p>
+      </div>
+
+      <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400
+        text-[10px] font-bold rounded-full
+        border border-indigo-500/30 flex-shrink-0">
+        HADIR
+      </span>
+
+    </div>
+  `).join("");
+}
 // ===== ATTENDANCE POLLING =====
 let attendancePoller = null;
 let alreadyNotified = [];
@@ -563,7 +567,7 @@ function showSuccessOverlay(log) {
         <div>
           <p class="text-gray-400 text-xs">Badge</p>
           <p class="text-white text-sm font-semibold">
-            ${user.badge_number || "-"}
+            ${user.full_name || user.name || "-"}
           </p>
         </div>
       </div>

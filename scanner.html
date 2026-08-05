@@ -586,50 +586,50 @@
 
   // ===== HANDLE HASIL SCAN =====
   async function handleScanResult(text) {
-    if (!text) return;
+  if (!text) return;
 
-    const eventId = document.getElementById("select-event").value;
-    if (!eventId) {
-      showToast("Pilih event terlebih dahulu!", "warning");
-      return;
-    }
-
-    // Validasi JSON
-    try { JSON.parse(text); } catch(e) {
-      showToast("QR tidak valid", "error");
-      return;
-    }
-
-    scanDone = true;
-    showResult("loading", "Memverifikasi...");
-
-    // Kirim GPS admin ke GAS
-    const result = await callAPI("processAttendance", {
-      qrToken  : text,
-      eventId  : eventId,
-      adminGps : adminGps ? {
-        lat : adminGps.lat,
-        lng : adminGps.lng
-      } : null
-    });
-
-    if (result.success) {
-      showResult("success", result.message);
-      addToLog(true, result.message);
-      showToast("Presensi berhasil!", "success");
-    } else {
-      showResult("error", result.message);
-      addToLog(false, result.message);
-      showToast(result.message, "error");
-    }
-
-    // Lanjut scan setelah 3 detik
-    setTimeout(() => {
-      hideResult();
-      scanDone = false;
-      beginScan();
-    }, 3000);
+  const eventId = document.getElementById("select-event").value;
+  if (!eventId) {
+    showToast("Pilih event terlebih dahulu!", "warning");
+    return;
   }
+
+  try { JSON.parse(text); } catch(e) {
+    showToast("QR tidak valid", "error");
+    return;
+  }
+
+  scanDone = true;
+  showResult("loading", "Memverifikasi...");
+
+  const result = await callAPI("processAttendance", {
+    qrToken  : text,
+    eventId  : eventId,
+    adminGps : adminGps ? {
+      lat : adminGps.lat,
+      lng : adminGps.lng
+    } : null
+  });
+
+  if (result.success) {
+    // Tampilkan nama bukan email
+    const displayName = result.fullName || result.badge || "-";
+    const message = `Nama: ${displayName}\nBadge: ${result.badge}`;
+    showResult("success", message);
+    addToLog(true, displayName, result.badge);
+    showToast(`${displayName} berhasil presensi!`, "success");
+  } else {
+    showResult("error", result.message);
+    addToLog(false, result.message, "");
+    showToast(result.message, "error");
+  }
+
+  setTimeout(() => {
+    hideResult();
+    scanDone = false;
+    beginScan();
+  }, 3000);
+}
 
   // ===== RESULT DISPLAY =====
   function showResult(type, message) {
@@ -668,37 +668,40 @@
   }
 
   // ===== LOG =====
-  function addToLog(success, message) {
-    scanCount++;
-    document.getElementById("scan-count").textContent =
-      scanCount + " scan";
+  function addToLog(success, name, badge) {
+  scanCount++;
+  document.getElementById("scan-count").textContent =
+    scanCount + " scan";
 
-    const log = document.getElementById("scan-log");
-    const time = new Date().toLocaleTimeString("id-ID");
-    const firstLine = message.split("\n")[0];
+  const log = document.getElementById("scan-log");
+  const time = new Date().toLocaleTimeString("id-ID");
 
-    const empty = log.querySelector("p");
-    if (empty) empty.remove();
+  const empty = log.querySelector("p");
+  if (empty) empty.remove();
 
-    const item = document.createElement("div");
-    item.className = `flex items-center gap-3 p-3 rounded-xl
-      ${success ? "bg-emerald-500/10" : "bg-rose-500/10"}`;
-    item.innerHTML = `
-      <span class="text-lg flex-shrink-0">
-        ${success ? "✅" : "❌"}
-      </span>
-      <div class="flex-1 min-w-0">
-        <p class="text-xs font-medium truncate
-          ${success ? "text-emerald-300" : "text-rose-300"}">
-          ${firstLine}
+  const item = document.createElement("div");
+  item.className = `flex items-center gap-3 p-3 rounded-xl
+    ${success ? "bg-emerald-500/10" : "bg-rose-500/10"}`;
+  item.innerHTML = `
+    <span class="text-lg flex-shrink-0">
+      ${success ? "✅" : "❌"}
+    </span>
+    <div class="flex-1 min-w-0">
+      <p class="text-xs font-medium truncate
+        ${success ? "text-emerald-300" : "text-rose-300"}">
+        ${name}
+      </p>
+      ${success && badge ? `
+        <p class="text-gray-500 text-[10px]">
+          Badge: ${badge}
         </p>
-        <p class="text-[10px] text-gray-500">${time}</p>
-      </div>
-    `;
+      ` : ""}
+      <p class="text-gray-600 text-[10px]">${time}</p>
+    </div>
+  `;
 
-    log.insertBefore(item, log.firstChild);
-  }
-
+  log.insertBefore(item, log.firstChild);
+}
   // Cleanup saat halaman ditinggal
   window.addEventListener("beforeunload", () => {
     if (stream) stream.getTracks().forEach(t => t.stop());

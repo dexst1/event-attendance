@@ -52,26 +52,18 @@ async function exportData(format) {
 
   // Siapkan data
   const headers = [
-    "No",
-    "Event",
-    "Nama Lengkap",
-    "Email",
-    "Badge/NIK",
-    "Departemen",
-    "Waktu Presensi",
-    "Status"
-  ];
-
-  const rows = logs.map((log, i) => [
-    i + 1,
-    log.eventTitle || "-",
-    log.full_name || "-",
-    log.email || "-",
-    log.badge_number || "-",
-    log.department || "-",
-    formatDateTime(log.timestamp),
-    log.status || "VALID"
-  ]);
+  "No", "Event", "Nama Lengkap",
+  "Badge/NIK", "Bagian", "Waktu Presensi", "Status"
+];
+const rows = logs.map((log, i) => [
+  i + 1,
+  log.eventTitle || "-",
+  log.full_name || "-",
+  log.badge_number || "-",
+  log.bagian || "-",
+  formatDateTime(log.timestamp),
+  log.status || "VALID"
+]);
 
   if (format === "csv") {
     exportCSV(headers, rows, "presensi");
@@ -99,28 +91,20 @@ async function exportUsers() {
   }
 
   const headers = [
-    "No",
-    "Nama Lengkap",
-    "Email",
-    "Badge/NIK",
-    "Departemen",
-    "No. HP",
-    "Role",
-    "Profil Lengkap",
-    "Tanggal Bergabung"
-  ];
-
-  const rows = users.map((user, i) => [
-    i + 1,
-    user.full_name || "-",
-    user.email || "-",
-    user.badge_number || "-",
-    user.department || "-",
-    user.phone || "-",
-    user.role || "USER",
-    user.badge_number && user.has_signature ? "Ya" : "Belum",
-    formatDate(user.created_at)
-  ]);
+  "No", "Nama Lengkap", "Email", "Badge/NIK",
+  "Bagian", "No. HP", "Role", "Profil Lengkap", "Tanggal Bergabung"
+];
+const rows = users.map((user, i) => [
+  i + 1,
+  user.full_name || "-",
+  user.email || "-",
+  user.badge_number || "-",
+  user.bagian || "-",
+  user.phone || "-",
+  user.role || "USER",
+  user.badge_number && user.has_signature ? "Ya" : "Belum",
+  formatDate(user.created_at)
+]);
 
   // Tampilkan pilihan format
   showExportFormatModal(headers, rows, "users", "Data User");
