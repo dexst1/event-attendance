@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Event Attendance</title>
+  <title>Absenium — QR Presensi</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -242,7 +242,7 @@
 
   // ===== USER INFO =====
   function renderUserInfo() {
-    document.getElementById("app-name").textContent = CONFIG.APP_NAME;
+    document.getElementById("app-name").textContent = "Absenium";
     document.getElementById("greeting").textContent =
       "Halo, " + (user.full_name || user.name || "User");
     document.getElementById("user-name").textContent =

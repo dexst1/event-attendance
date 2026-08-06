@@ -3,315 +3,397 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login — Event Attendance</title>
-  <script src="https://cdn.tailwindcss.com"></script>  
+  <title>Absenium — Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { background-color: #0f0f1a; }
-    .glass {
-      background: rgba(255,255,255,0.05);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.1);
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    * { font-family: 'Inter', sans-serif; }
+
+    body {
+      background-color: #0a1628;
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(13,148,136,0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(6,182,212,0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 60% 80%, rgba(20,184,166,0.08) 0%, transparent 40%);
+      min-height: 100vh;
     }
-    .gradient-text {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a78bfa);
+
+    /* Grid background seperti kertas millimeter */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(13,148,136,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(13,148,136,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .glass {
+      background: rgba(255,255,255,0.04);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Kotak Periodik */
+    .periodic-box {
+      position: relative;
+      width: 160px;
+      height: 160px;
+      border: 2px solid #0d9488;
+      border-radius: 8px;
+      background: rgba(13,148,136,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 0 30px rgba(13,148,136,0.3),
+        0 0 60px rgba(13,148,136,0.1),
+        inset 0 0 30px rgba(13,148,136,0.05);
+    }
+
+    .periodic-box::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 8px;
+      background: linear-gradient(
+        135deg,
+        rgba(13,148,136,0.4),
+        transparent 50%,
+        rgba(6,182,212,0.2)
+      );
+      z-index: -1;
+    }
+
+    .periodic-number {
+      position: absolute;
+      top: 8px;
+      left: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #5eead4;
+      line-height: 1;
+    }
+
+    .periodic-symbol {
+      font-size: 72px;
+      font-weight: 800;
+      line-height: 1;
+      background: linear-gradient(135deg, #0d9488, #06b6d4, #14b8a6);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      letter-spacing: -2px;
     }
+
+    .periodic-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #5eead4;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .periodic-weight {
+      font-size: 11px;
+      font-weight: 400;
+      color: #99f6e4;
+      margin-top: 1px;
+    }
+
+    /* Tagline */
+    .tagline {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #0d9488;
+    }
+
+    /* Button Google */
     .btn-google {
-      background: white;
-      transition: all 0.2s;
+      background: rgba(255,255,255,0.95);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .btn-google:hover {
-      background: #f1f5f9;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+      background: white;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(13,148,136,0.25);
     }
     .btn-google:active { transform: translateY(0); }
-    .orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.15;
-      pointer-events: none;
+    .btn-google:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* Animasi masuk */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+      animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .animate-in-delay {
+      opacity: 0;
+      animation: fadeInUp 0.6s 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .animate-in-delay-2 {
+      opacity: 0;
+      animation: fadeInUp 0.6s 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+
+    /* Glow pulse pada kotak periodik */
+    @keyframes glowPulse {
+      0%, 100% { box-shadow: 0 0 30px rgba(13,148,136,0.3), 0 0 60px rgba(13,148,136,0.1); }
+      50%       { box-shadow: 0 0 40px rgba(13,148,136,0.5), 0 0 80px rgba(13,148,136,0.2); }
+    }
+    .periodic-box { animation: glowPulse 3s ease-in-out infinite; }
+
+    /* Divider dengan label */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #1e3a4a;
+    }
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.08);
     }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+<body class="min-h-screen flex items-center justify-center p-4 relative">
 
-  <!-- Background Orbs -->
-  <div class="orb w-96 h-96 bg-indigo-600 -top-20 -left-20"></div>
-  <div class="orb w-80 h-80 bg-purple-600 bottom-0 right-0"></div>
+  <!-- Decorative circles -->
+  <div style="
+    position: fixed; width: 400px; height: 400px;
+    border-radius: 50%; border: 1px solid rgba(13,148,136,0.1);
+    top: -100px; right: -100px; pointer-events: none; z-index: 0;">
+  </div>
+  <div style="
+    position: fixed; width: 300px; height: 300px;
+    border-radius: 50%; border: 1px solid rgba(6,182,212,0.08);
+    bottom: -50px; left: -50px; pointer-events: none; z-index: 0;">
+  </div>
 
   <!-- Login Card -->
-  <div class="glass rounded-3xl p-8 w-full max-w-sm flex flex-col items-center gap-6 relative z-10">
+  <div class="glass rounded-3xl p-8 w-full max-w-sm
+    flex flex-col items-center gap-6 relative z-10">
 
-    <!-- Logo / Icon -->
-    <div class="w-20 h-20 rounded-2xl bg-indigo-600/20 border border-indigo-500/30
-      flex items-center justify-center text-4xl">
-      📋
+    <!-- Periodic Element Box -->
+    <div class="animate-in flex flex-col items-center gap-3">
+      <div class="periodic-box">
+        <span class="periodic-number">9</span>
+        <span class="periodic-symbol">Ab</span>
+        <span class="periodic-name">Absenium</span>
+        <span class="periodic-weight">9.03</span>
+      </div>
     </div>
 
-    <!-- Title -->
-    <div class="text-center">
-      <h1 class="text-2xl font-bold gradient-text" id="app-name">
-        Event Attendance
-      </h1>
-      <p class="text-gray-400 text-sm mt-1" id="org-name">
-        Sistem Presensi Digital
-      </p>
+    <!-- Tagline -->
+    <div class="animate-in-delay flex flex-col items-center gap-1">
+      <p class="tagline">The Element of Attendance</p>
     </div>
 
     <!-- Divider -->
-    <div class="w-full h-px bg-white/10"></div>
-
-    <!-- Info -->
-    <p class="text-gray-400 text-xs text-center leading-relaxed">
-      Masuk menggunakan akun Google Anda untuk mengakses sistem presensi.
-    </p>
+    <div class="divider w-full animate-in-delay">
+      <span class="text-[10px] text-gray-600 whitespace-nowrap">
+        Masuk untuk melanjutkan
+      </span>
+    </div>
 
     <!-- Google Sign In Button -->
-    <button id="btn-login" onclick="handleLogin()"
-      class="btn-google w-full flex items-center justify-center gap-3
-        px-6 py-3 rounded-2xl text-gray-700 font-semibold text-sm shadow-lg">
-      <img src="https://developers.google.com/identity/images/g-logo.png"
-        alt="Google" class="w-5 h-5">
-      <span>Masuk dengan Google</span>
-    </button>
+    <div class="w-full animate-in-delay-2 space-y-3">
+      <button id="btn-login" onclick="handleLogin()"
+        class="btn-google w-full flex items-center justify-center
+          gap-3 px-6 py-3.5 rounded-2xl text-gray-700
+          font-semibold text-sm shadow-lg">
+        <img
+          src="https://developers.google.com/identity/images/g-logo.png"
+          alt="Google" class="w-5 h-5">
+        <span>Masuk dengan Google</span>
+      </button>
 
-    <!-- Status Message -->
-    <div id="status" class="hidden w-full p-3 rounded-xl text-xs text-center"></div>
+      <!-- Status Message -->
+      <div id="status" class="hidden w-full p-3 rounded-xl
+        text-xs text-center transition-all duration-300">
+      </div>
+    </div>
 
     <!-- Footer -->
-    <p class="text-gray-600 text-[10px] text-center">
-      🔒 Data Anda aman dan terenkripsi
+    <p class="text-[10px] text-gray-700 text-center animate-in-delay-2">
+      🔒 Autentikasi aman via Google OAuth
     </p>
 
   </div>
 
-  <!-- Scripts -->
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-
-<script>
-  // Isi nama app dari config
-  document.getElementById("app-name").textContent = CONFIG.APP_NAME;
-  document.getElementById("org-name").textContent = CONFIG.ORG_NAME;
-
-  window.onload = function() {
-    // Cek jika sudah login
-    if (isLoggedIn()) {
-      redirectAfterLogin(getStoredUser());
-      return;
-    }
-
-    // Cek jika kembali dari redirect Google (ada code di URL)
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
-    const error = urlParams.get("error");
-
-    if (error) {
-      showStatus("Login dibatalkan.", "error");
-      // Bersihkan URL
-      window.history.replaceState({}, "", window.location.pathname);
-      return;
-    }
-
-    if (code) {
-      // Ada authorization code, tukar ke token
-      handleAuthCode(code);
-      return;
-    }
-  };
-
-  // ===== HANDLE LOGIN BUTTON =====
-  function handleLogin() {
-    const btn = document.getElementById("btn-login");
-    btn.disabled = true;
-    btn.innerHTML = `
-      <div class="animate-spin rounded-full h-4 w-4
-        border-t-2 border-gray-400"></div>
-      <span>Menghubungkan...</span>
-    `;
-    showStatus("Mengalihkan ke Google...", "info");
-
-    // Redirect ke Google OAuth
-    const authUrl = buildGoogleAuthUrl();
-    window.location.href = authUrl;
-  }
-
-  // ===== BUILD GOOGLE AUTH URL =====
-  function buildGoogleAuthUrl() {
-    const params = new URLSearchParams({
-      client_id     : CONFIG.GOOGLE_CLIENT_ID,
-      redirect_uri  : window.location.origin + 
-                      window.location.pathname,
-      response_type : "token",  // Implicit flow — langsung dapat token
-      scope         : "openid email profile",
-      prompt        : "select_account"
-    });
-    return "https://accounts.google.com/o/oauth2/v2/auth?" + 
-           params.toString();
-  }
-
-  // ===== HANDLE IMPLICIT FLOW (token langsung di URL hash) =====
-  window.onload = function() {
-    // Cek jika sudah login
-    if (isLoggedIn()) {
-      redirectAfterLogin(getStoredUser());
-      return;
-    }
-
-    // Implicit flow: token ada di URL hash (#access_token=...)
-    const hash = window.location.hash;
-    if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get("access_token");
-      const error = params.get("error");
-
-      // Bersihkan hash dari URL
-      window.history.replaceState(
-        {}, "", window.location.pathname
-      );
-
-      if (error) {
-        showStatus("Login gagal: " + error, "error");
+  <script>
+    window.onload = function() {
+      if (isLoggedIn()) {
+        redirectAfterLogin(getStoredUser());
         return;
       }
 
-      if (accessToken) {
-        showStatus("Memproses login...", "info");
-        fetchUserInfo(accessToken);
-        return;
-      }
-    }
+      const hash = window.location.hash;
+      if (hash && hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.substring(1));
+        const accessToken = params.get("access_token");
+        const error = params.get("error");
 
-    // Cek error di URL params
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("error")) {
-      showStatus("Login dibatalkan.", "error");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  };
-
-  // ===== AMBIL INFO USER DARI GOOGLE =====
-  async function fetchUserInfo(accessToken) {
-    showStatus("Mengambil info akun...", "info");
-    try {
-      const res = await fetch(
-        "https://www.googleapis.com/oauth2/v3/userinfo",
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      if (!res.ok) throw new Error("Gagal mengambil info user.");
-
-      const info = await res.json();
-
-      if (!info.email) throw new Error("Email tidak ditemukan.");
-      if (!info.email_verified) {
-        throw new Error("Email belum diverifikasi Google.");
-      }
-
-      await processLogin(
-        info.email,
-        info.name || info.email,
-        info.picture || "",
-        accessToken
-      );
-
-    } catch(err) {
-      showStatus("Gagal: " + err.message, "error");
-      resetButton();
-    }
-  }
-
-  // ===== PROSES LOGIN KE GAS =====
-  async function processLogin(email, name, picture, accessToken) {
-    showStatus("Memverifikasi akun di server...", "info");
-    try {
-      const response = await fetch(CONFIG.GAS_API_URL, {
-        method  : "POST",
-        headers : { "Content-Type": "text/plain" },
-        body    : JSON.stringify({
-          action     : "getCurrentUser",
-          email      : email,
-          idToken    : accessToken,
-          accessToken: accessToken
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (!result || result.error) {
-        showStatus(
-          "Gagal verifikasi: " + (result?.message || "Server error"),
-          "error"
+        window.history.replaceState(
+          {}, "", window.location.pathname
         );
-        resetButton();
-        return;
+
+        if (error) {
+          showStatus("Login dibatalkan.", "error");
+          return;
+        }
+        if (accessToken) {
+          showStatus("Memproses login...", "info");
+          fetchUserInfo(accessToken);
+          return;
+        }
       }
 
-      // Simpan ke session
-      storeUser({
-        ...result,
-        name         : name,
-        picture      : picture,
-        idToken      : accessToken,
-        tokenIssuedAt: Date.now()
-      });
-
-      showStatus("Login berhasil! Mengalihkan...", "success");
-      setTimeout(() => redirectAfterLogin(result), 800);
-
-    } catch(err) {
-      showStatus("Error: " + err.message, "error");
-      resetButton();
-    }
-  }
-
-  // ===== REDIRECT SETELAH LOGIN =====
-  function redirectAfterLogin(user) {
-    if (!user.isProfileComplete) {
-      window.location.href = "profile.html";
-    } else if (
-      user.role === "ADMIN" ||
-      user.role === "SUPERADMIN"
-    ) {
-      window.location.href = "admin.html";
-    } else {
-      window.location.href = "index.html";
-    }
-  }
-
-  // ===== UI HELPERS =====
-  function showStatus(msg, type) {
-    const el = document.getElementById("status");
-    const colors = {
-      info    : "bg-indigo-500/20 text-indigo-300",
-      success : "bg-emerald-500/20 text-emerald-300",
-      error   : "bg-rose-500/20 text-rose-300"
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("error")) {
+        showStatus("Login dibatalkan.", "error");
+        window.history.replaceState({}, "", window.location.pathname);
+      }
     };
-    el.className = `w-full p-3 rounded-xl text-xs
-      text-center ${colors[type]}`;
-    el.textContent = msg;
-    el.classList.remove("hidden");
-  }
 
-  function resetButton() {
-    const btn = document.getElementById("btn-login");
-    btn.disabled = false;
-    btn.innerHTML = `
-      <img src="https://developers.google.com/identity/images/g-logo.png"
-        alt="Google" class="w-5 h-5">
-      <span>Masuk dengan Google</span>
-    `;
-  }
-</script>
+    function handleLogin() {
+      const btn = document.getElementById("btn-login");
+      btn.disabled = true;
+      btn.innerHTML = `
+        <div class="animate-spin rounded-full h-4 w-4
+          border-t-2 border-teal-600"></div>
+        <span>Menghubungkan...</span>
+      `;
+      showStatus("Mengalihkan ke Google...", "info");
+      window.location.href = buildGoogleAuthUrl();
+    }
 
+    function buildGoogleAuthUrl() {
+      const params = new URLSearchParams({
+        client_id     : CONFIG.GOOGLE_CLIENT_ID,
+        redirect_uri  : window.location.origin +
+                        window.location.pathname,
+        response_type : "token",
+        scope         : "openid email profile",
+        prompt        : "select_account"
+      });
+      return "https://accounts.google.com/o/oauth2/v2/auth?" +
+             params.toString();
+    }
+
+    async function fetchUserInfo(accessToken) {
+      showStatus("Mengambil info akun...", "info");
+      try {
+        const res = await fetch(
+          "https://www.googleapis.com/oauth2/v3/userinfo",
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!res.ok) throw new Error("Gagal mengambil info user.");
+        const info = await res.json();
+        if (!info.email) throw new Error("Email tidak ditemukan.");
+        await processLogin(
+          info.email,
+          info.name || info.email,
+          info.picture || "",
+          accessToken
+        );
+      } catch(err) {
+        showStatus("Gagal: " + err.message, "error");
+        resetButton();
+      }
+    }
+
+    async function processLogin(email, name, picture, accessToken) {
+      showStatus("Memverifikasi akun...", "info");
+      try {
+        const response = await fetch(CONFIG.GAS_API_URL, {
+          method  : "POST",
+          headers : { "Content-Type": "text/plain" },
+          body    : JSON.stringify({
+            action     : "getCurrentUser",
+            email      : email,
+            idToken    : accessToken,
+            accessToken: accessToken
+          })
+        });
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        const result = await response.json();
+        if (!result || result.error) {
+          showStatus(
+            "Gagal: " + (result?.message || "Server error"),
+            "error"
+          );
+          resetButton();
+          return;
+        }
+        storeUser({
+          ...result,
+          name         : name,
+          picture      : picture,
+          idToken      : accessToken,
+          tokenIssuedAt: Date.now()
+        });
+        showStatus("Berhasil! Mengalihkan...", "success");
+        setTimeout(() => redirectAfterLogin(result), 800);
+      } catch(err) {
+        showStatus("Error: " + err.message, "error");
+        resetButton();
+      }
+    }
+
+    function redirectAfterLogin(user) {
+      if (!user.isProfileComplete) {
+        window.location.href = "profile.html";
+      } else if (
+        user.role === "ADMIN" ||
+        user.role === "SUPERADMIN"
+      ) {
+        window.location.href = "admin.html";
+      } else {
+        window.location.href = "index.html";
+      }
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById("status");
+      const colors = {
+        info    : "bg-teal-500/20 text-teal-300 border border-teal-500/30",
+        success : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+        error   : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+      };
+      el.className = `w-full p-3 rounded-xl text-xs
+        text-center ${colors[type]}`;
+      el.textContent = msg;
+      el.classList.remove("hidden");
+    }
+
+    function resetButton() {
+      const btn = document.getElementById("btn-login");
+      btn.disabled = false;
+      btn.innerHTML = `
+        <img
+          src="https://developers.google.com/identity/images/g-logo.png"
+          alt="Google" class="w-5 h-5">
+        <span>Masuk dengan Google</span>
+      `;
+    }
+  </script>
 </body>
 </html>
