@@ -516,7 +516,7 @@
         </div>
 
         <!-- Tombol Word baru -->
-        <button onclick="exportAllAttendanceWord()"
+        <button onclick="handleExportAllWord()"
           class="w-full flex items-center justify-center gap-2
             py-3 rounded-xl font-bold text-sm transition"
           style="background:#2b5797; color:white;">
@@ -703,6 +703,18 @@
         showToast("Gagal: " + result.message, "error");
       }
     }
+    function handleExportAllWord() {
+      const eventId = document.getElementById("export-event").value;
+      if (!eventId || eventId === "all") {
+        showToast(
+          "Pilih satu event spesifik untuk export Word",
+          "warning"
+        );
+        return;
+      }
+      exportAttendanceWord(eventId);
+    }
+
   </script>
   <script>
 // ============================================================
