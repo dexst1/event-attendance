@@ -633,24 +633,32 @@ function formatTimeWord(isoString) {
 
 // ===== LOAD DOCX.JS =====
 function loadDocxJs(callback) {
-  if (typeof docx !== "undefined") { callback(); return; }
-
-  showLoading("Memuat library dokumen...");
-  const script = document.createElement("script");
-  script.src = "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js";
-  script.onload = () => {
-    hideLoading();
+  // Cek apakah sudah loaded dari <head>
+  if (typeof docx !== "undefined") {
     callback();
-  };
-  script.onerror = () => {
-    hideLoading();
-    showToast(
-      "Gagal memuat library Word. Periksa koneksi internet.",
-      "error"
-    );
-  };
-  document.head.appendChild(script);
+    return;
+  }
+
+  // Tunggu maksimal 10 detik
+  let attempts = 0;
+  const check = setInterval(() => {
+    attempts++;
+    if (typeof docx !== "undefined") {
+      clearInterval(check);
+      callback();
+      return;
+    }
+    if (attempts > 20) {
+      clearInterval(check);
+      hideLoading();
+      showToast(
+        "Library Word gagal dimuat. Refresh halaman.",
+        "error"
+      );
+    }
+  }, 500);
 }
+
 
 // Export semua event sekaligus ke Word
 async function exportAllAttendanceWord() {
