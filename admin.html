@@ -241,9 +241,60 @@
       <div>
         <label class="block text-xs text-gray-400 mb-1">Nama Event</label>
         <input type="text" id="evt-title"
-          placeholder="Contoh: Rapat All Hands Q3"
+          placeholder="Contoh: Pengenalan Kalibrasi"
           class="input-field">
       </div>
+
+      <!-- Keterangan Kegiatan -->
+<div>
+  <label class="block text-xs text-gray-400 mb-1">
+    Keterangan Kegiatan
+  </label>
+  <input type="text" id="evt-keterangan"
+    placeholder="Contoh: Sharing Knowledge, Pengenalan Alat"
+    class="input-field">
+</div>
+
+<!-- Tempat -->
+<div>
+  <label class="block text-xs text-gray-400 mb-1">Tempat</label>
+  <input type="text" id="evt-tempat"
+    placeholder="Contoh: Ruang Rapat Lantai 2"
+    class="input-field">
+</div>
+
+<!-- Pembicara -->
+<div class="space-y-2">
+  <div class="flex items-center justify-between">
+    <label class="block text-xs text-gray-400">
+      Pembicara
+    </label>
+    <button onclick="addPembicaraField()"
+      class="px-2 py-1 bg-indigo-500/20 text-indigo-400
+        border border-indigo-500/30 rounded-lg text-[11px]
+        font-semibold hover:bg-indigo-500/30 transition">
+      + Tambah
+    </button>
+  </div>
+
+  <!-- Container pembicara dinamis -->
+  <div id="pembicara-container" class="space-y-2">
+    <!-- Field pembicara pertama (default) -->
+    <div class="pembicara-item flex items-center gap-2">
+      <input type="text"
+        placeholder="Nama pembicara"
+        class="input-field flex-1 pembicara-input">
+      <input type="text"
+        placeholder="Dari (instansi/bagian)"
+        class="input-field flex-1 pembicara-asal">
+    </div>
+  </div>
+
+  <p class="text-gray-600 text-[10px]">
+    Isi nama dan asal instansi/bagian pembicara
+  </p>
+</div>
+
 
       <!-- Waktu -->
       <div class="grid grid-cols-2 gap-3">
@@ -463,6 +514,15 @@
             📊 Export Excel
           </button>
         </div>
+
+        <!-- Tombol Word baru -->
+        <button onclick="exportAllAttendanceWord()"
+          class="w-full flex items-center justify-center gap-2
+            py-3 rounded-xl font-bold text-sm transition"
+          style="background:#2b5797; color:white;">
+          📝 Export Semua Daftar Hadir (Word)
+        </button>
+
       </div>
 
       <!-- Export User -->
@@ -855,6 +915,73 @@ window.switchTab = function(tab) {
     setTimeout(() => eventMap.invalidateSize(), 300);
   }
 };
+</script>
+<script>
+// ============================================================
+// PEMBICARA DYNAMIC FIELDS
+// ============================================================
+function addPembicaraField() {
+  const container = document.getElementById("pembicara-container");
+  const items = container.querySelectorAll(".pembicara-item");
+
+  // Maksimal 10 pembicara
+  if (items.length >= 10) {
+    showToast("Maksimal 10 pembicara", "warning");
+    return;
+  }
+
+  const div = document.createElement("div");
+  div.className = "pembicara-item flex items-center gap-2";
+  div.innerHTML = `
+    <input type="text"
+      placeholder="Nama pembicara"
+      class="input-field flex-1 pembicara-input">
+    <input type="text"
+      placeholder="Dari (instansi/bagian)"
+      class="input-field flex-1 pembicara-asal">
+    <button onclick="removePembicaraField(this)"
+      class="w-8 h-8 flex-shrink-0 bg-rose-500/20
+        text-rose-400 border border-rose-500/30
+        rounded-lg flex items-center justify-center
+        hover:bg-rose-500/30 transition text-sm">
+      ✕
+    </button>
+  `;
+  container.appendChild(div);
+}
+
+function removePembicaraField(btn) {
+  btn.closest(".pembicara-item").remove();
+}
+
+function getPembicaraData() {
+  const items = document.querySelectorAll(".pembicara-item");
+  const pembicara = [];
+
+  items.forEach(item => {
+    const nama = item.querySelector(".pembicara-input").value.trim();
+    const asal = item.querySelector(".pembicara-asal").value.trim();
+    if (nama) {
+      pembicara.push({ nama, asal });
+    }
+  });
+
+  return pembicara;
+}
+
+function resetPembicaraFields() {
+  const container = document.getElementById("pembicara-container");
+  container.innerHTML = `
+    <div class="pembicara-item flex items-center gap-2">
+      <input type="text"
+        placeholder="Nama pembicara"
+        class="input-field flex-1 pembicara-input">
+      <input type="text"
+        placeholder="Dari (instansi/bagian)"
+        class="input-field flex-1 pembicara-asal">
+    </div>
+  `;
+}
 </script>
 </body>
 </html>

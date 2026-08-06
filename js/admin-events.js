@@ -51,10 +51,22 @@ function renderEventsList(events) {
       statusStyle = "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
 
+    // Render pembicara
+    const pembicaraHtml = event.pembicara && event.pembicara.length > 0
+      ? event.pembicara.map(p => `
+          <span class="px-2 py-0.5 bg-indigo-500/10
+            text-indigo-300 text-[10px] rounded-full
+            border border-indigo-500/20">
+            🎤 ${p.nama}${p.asal ? ` (${p.asal})` : ""}
+          </span>
+        `).join("")
+      : `<span class="text-gray-600 text-[10px]">-</span>`;
+
     return `
       <div class="p-4 bg-white/5 rounded-xl space-y-3
         border border-white/5 hover:border-white/10 transition">
 
+        <!-- Header -->
         <div class="flex items-start justify-between gap-2">
           <div class="flex-1 min-w-0">
             <p class="text-white text-sm font-semibold truncate">
@@ -64,12 +76,13 @@ function renderEventsList(events) {
               ID: ${event.id}
             </p>
           </div>
-          <span class="px-2 py-1 text-[10px] font-bold rounded-full
-            border flex-shrink-0 ${statusStyle}">
+          <span class="px-2 py-1 text-[10px] font-bold
+            rounded-full border flex-shrink-0 ${statusStyle}">
             ${statusLabel}
           </span>
         </div>
 
+        <!-- Detail Info -->
         <div class="grid grid-cols-2 gap-2 text-[11px] text-gray-400">
           <div class="bg-white/5 rounded-lg p-2">
             <p class="text-gray-500 text-[10px] mb-0.5">Mulai</p>
@@ -79,39 +92,84 @@ function renderEventsList(events) {
             <p class="text-gray-500 text-[10px] mb-0.5">Selesai</p>
             <p>${formatDateTime(event.endTime)}</p>
           </div>
+          ${event.keterangan ? `
+            <div class="bg-white/5 rounded-lg p-2 col-span-2">
+              <p class="text-gray-500 text-[10px] mb-0.5">
+                Keterangan
+              </p>
+              <p>${event.keterangan}</p>
+            </div>
+          ` : ""}
+          ${event.tempat ? `
+            <div class="bg-white/5 rounded-lg p-2 col-span-2">
+              <p class="text-gray-500 text-[10px] mb-0.5">Tempat</p>
+              <p>📍 ${event.tempat}</p>
+            </div>
+          ` : ""}
         </div>
 
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1 text-[11px] text-gray-400">
+        <!-- Pembicara -->
+        ${event.pembicara && event.pembicara.length > 0 ? `
+          <div class="space-y-1">
+            <p class="text-gray-500 text-[10px]">Pembicara:</p>
+            <div class="flex flex-wrap gap-1">
+              ${pembicaraHtml}
+            </div>
+          </div>
+        ` : ""}
+
+        <!-- Geofencing badge -->
+        ${event.geofencingEnabled ? `
+          <div class="flex items-center gap-1 text-[10px]
+            text-emerald-400">
+            <span>📍</span>
+            <span>Geofencing aktif · Radius ${event.geo_radius}m</span>
+          </div>
+        ` : ""}
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between pt-1">
+          <div class="flex items-center gap-1
+            text-[11px] text-gray-400">
             <span>👥</span>
             <span id="attendance-count-${event.id}">
               Memuat...
             </span>
           </div>
-          <div class="flex gap-2">
-            <button onclick="viewAttendance('${event.id}', '${event.title}')"
-  class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400
-    border border-indigo-500/30 rounded-lg text-[11px]
-    font-semibold hover:bg-indigo-500/30 transition">
-  👥 Peserta
-</button>
-<button onclick="openDocumentationModal('${event.id}', '${event.title}')"
-  class="px-3 py-1.5 bg-purple-500/20 text-purple-400
-    border border-purple-500/30 rounded-lg text-[11px]
-    font-semibold hover:bg-purple-500/30 transition">
-  📸 Foto
-</button>
-            <button onclick="confirmDeleteEvent('${event.id}', '${event.title}')"
+          <div class="flex gap-2 flex-wrap justify-end">
+            <button onclick="viewAttendance(
+                '${event.id}', '${event.title}')"
+              class="px-3 py-1.5 bg-indigo-500/20 text-indigo-400
+                border border-indigo-500/30 rounded-lg text-[11px]
+                font-semibold hover:bg-indigo-500/30 transition">
+              👥 Peserta
+            </button>
+            <button onclick="openDocumentationModal(
+                '${event.id}', '${event.title}')"
+              class="px-3 py-1.5 bg-purple-500/20 text-purple-400
+                border border-purple-500/30 rounded-lg text-[11px]
+                font-semibold hover:bg-purple-500/30 transition">
+              📸 Foto
+            </button>
+            <button onclick="exportAttendanceWord(
+                '${event.id}')"
+              class="px-3 py-1.5 bg-emerald-500/20 text-emerald-400
+                border border-emerald-500/30 rounded-lg text-[11px]
+                font-semibold hover:bg-emerald-500/30 transition">
+              📄 Word
+            </button>
+            <button onclick="confirmDeleteEvent(
+                '${event.id}', '${event.title}')"
               class="btn-danger">
               🗑 Hapus
             </button>
           </div>
         </div>
+
       </div>
     `;
   }).join("");
 
-  // Load jumlah presensi per event
   events.forEach(event => loadAttendanceCount(event.id));
 }
 
@@ -134,6 +192,8 @@ async function submitCreateEvent() {
   const title = document.getElementById("evt-title").value.trim();
   const start = document.getElementById("evt-start").value;
   const end = document.getElementById("evt-end").value;
+  const keterangan = document.getElementById("evt-keterangan").value.trim();
+  const tempat = document.getElementById("evt-tempat").value.trim();
 
   if (!title) {
     showToast("Nama event wajib diisi", "error"); return;
@@ -145,21 +205,19 @@ async function submitCreateEvent() {
     showToast("Waktu selesai harus setelah waktu mulai", "error"); return;
   }
 
-  // Siapkan data geofencing
-  let geofencing = { enabled: false };
+  // Ambil data pembicara
+  const pembicara = getPembicaraData();
 
+  // Siapkan geofencing
+  let geofencing = { enabled: false };
   if (geofencingEnabled) {
     const radius = parseInt(document.getElementById("evt-radius").value);
-
     if (!selectedLat || !selectedLng) {
-      showToast("Pilih titik lokasi di peta terlebih dahulu", "error");
-      return;
+      showToast("Pilih titik lokasi di peta", "error"); return;
     }
     if (!radius || radius < 10) {
-      showToast("Radius minimal 10 meter", "error");
-      return;
+      showToast("Radius minimal 10 meter", "error"); return;
     }
-
     geofencing = {
       enabled : true,
       lat     : selectedLat,
@@ -173,19 +231,26 @@ async function submitCreateEvent() {
     title,
     start,
     end,
-    geofencing
+    geofencing,
+    eventData: {
+      keterangan,
+      tempat,
+      pembicara
+    }
   });
   hideLoading();
 
   if (result.success) {
     showToast("Event berhasil dibuat!", "success");
 
-    // Reset form
+    // Reset semua field
     document.getElementById("evt-title").value = "";
     document.getElementById("evt-start").value = "";
     document.getElementById("evt-end").value = "";
+    document.getElementById("evt-keterangan").value = "";
+    document.getElementById("evt-tempat").value = "";
+    resetPembicaraFields();
 
-    // Reset geofencing toggle jika aktif
     if (geofencingEnabled) {
       toggleGeofencing();
       mapInitialized = false;

@@ -275,3 +275,394 @@ function getDateStamp() {
     .slice(0, 10)
     .replace(/-/g, "");
 }
+
+// ============================================================
+// EXPORT WORD — Daftar Hadir Event
+// ============================================================
+
+async function exportAttendanceWord(eventId) {
+  showLoading("Menyiapkan data daftar hadir...");
+
+  // Ambil data event
+  const eventsResult = await callAPI("getAllEvents");
+  const logsResult = await callAPI("getAttendanceLogs", {
+    eventId : eventId,
+    limit   : 9999
+  });
+
+  hideLoading();
+
+  if (!eventsResult.success || !logsResult.success) {
+    showToast("Gagal mengambil data", "error");
+    return;
+  }
+
+  const event = eventsResult.events.find(e => e.id === eventId);
+  if (!event) {
+    showToast("Event tidak ditemukan", "error");
+    return;
+  }
+
+  const logs = logsResult.logs || [];
+
+  // Ambil data user lengkap untuk signature
+  const usersResult = await callAPI("getAllUsers");
+  const users = usersResult.success ? usersResult.users : [];
+
+  // Map email → user data
+  const userMap = {};
+  users.forEach(u => { userMap[u.email] = u; });
+
+  // Generate Word
+  generateWordDocument(event, logs, userMap);
+}
+
+function generateWordDocument(event, logs, userMap) {
+  // Load docx.js jika belum ada
+  if (typeof docx === "undefined") {
+    loadDocxJs(() => generateWordDocument(event, logs, userMap));
+    return;
+  }
+
+  showLoading("Membuat dokumen Word...");
+
+  try {
+    const {
+      Document, Packer, Paragraph, Table, TableRow, TableCell,
+      TextRun, AlignmentType, WidthType, BorderStyle,
+      ImageRun, HeadingLevel, ShadingType, VerticalAlign
+    } = docx;
+
+    // ===== HEADER PARAGRAPHS =====
+    const headerParagraphs = [
+      new Paragraph({
+        children: [
+          new TextRun({
+            text : "COMMUNITY OF PRACTICE (COP)",
+            bold : true,
+            size : 28,
+            font : "Arial"
+          })
+        ],
+        alignment: AlignmentType.LEFT,
+        spacing  : { after: 200 }
+      }),
+
+      // Keterangan Kegiatan
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Keterangan Kegiatan\t: " +
+                  (event.keterangan || "-"),
+            size: 22,
+            font: "Arial"
+          })
+        ],
+        spacing: { after: 80 }
+      }),
+
+      // Tema/Topik
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Tema/Topik\t\t: " + (event.title || "-"),
+            size: 22,
+            font: "Arial"
+          })
+        ],
+        spacing: { after: 80 }
+      }),
+
+      // Hari/Tanggal
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Hari/Tanggal\t\t: " +
+                  formatDateWord(event.startTime),
+            size: 22,
+            font: "Arial"
+          })
+        ],
+        spacing: { after: 80 }
+      }),
+
+      // Waktu
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Waktu\t\t\t: " +
+                  formatTimeWord(event.startTime) +
+                  " - " +
+                  formatTimeWord(event.endTime) +
+                  " WIB",
+            size: 22,
+            font: "Arial"
+          })
+        ],
+        spacing: { after: 80 }
+      }),
+
+      // Tempat
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Tempat\t\t\t: " + (event.tempat || "-"),
+            size: 22,
+            font: "Arial"
+          })
+        ],
+        spacing: { after: 80 }
+      }),
+
+      // Pembicara
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Pembicara\t\t: " +
+                  (event.pembicara && event.pembicara.length > 0
+                    ? event.pembicara.map(p =>
+                        p.nama + (p.asal ? ` (${p.asal})` : "")
+                      ).join(", ")
+                    : "-"),
+            size: 22,
+            font: "Arial"
+          })
+        ],
+        spacing: { after: 300 }
+      })
+    ];
+
+    // ===== TABEL HEADER ROW =====
+    const headerRow = new TableRow({
+      tableHeader: true,
+      children   : [
+        createHeaderCell("No.", 500),
+        createHeaderCell("Nama Lengkap", 2200),
+        createHeaderCell("Jabatan", 1800),
+        createHeaderCell("Unit Kerja", 1800),
+        createHeaderCell("No. HP", 1400),
+        createHeaderCell("Tanda Tangan", 2300)
+      ]
+    });
+
+    // ===== TABEL DATA ROWS =====
+    const dataRows = logs.map((log, index) => {
+      const userData = userMap[log.email] || {};
+      const nama = userData.full_name || log.full_name || "-";
+      const jabatan = userData.jabatan || "-";
+      const unitKerja = userData.bagian || "-";
+      const phone = userData.phone
+        ? String(userData.phone)
+        : "-";
+
+      // Signature cell
+      let signatureCell;
+      if (userData.signature_url &&
+          userData.signature_url.startsWith("http")) {
+        // Tampilkan placeholder tanda tangan
+        // (gambar dari URL tidak bisa langsung di docx.js)
+        signatureCell = createDataCell("", 2300, 1200);
+      } else {
+        signatureCell = createDataCell("", 2300, 1200);
+      }
+
+      return new TableRow({
+        children: [
+          createDataCell(String(index + 1), 500, 800),
+          createDataCell(nama, 2200, 800),
+          createDataCell(jabatan, 1800, 800),
+          createDataCell(unitKerja, 1800, 800),
+          createDataCell(phone, 1400, 800),
+          signatureCell
+        ]
+      });
+    });
+
+    // Tambah baris kosong jika kurang dari 10
+    const minRows = Math.max(10, logs.length);
+    const emptyRowsNeeded = minRows - logs.length;
+    const emptyRows = Array.from(
+      { length: emptyRowsNeeded }, (_, i) =>
+      new TableRow({
+        children: [
+          createDataCell(
+            String(logs.length + i + 1), 500, 800
+          ),
+          createDataCell("", 2200, 800),
+          createDataCell("", 1800, 800),
+          createDataCell("", 1800, 800),
+          createDataCell("", 1400, 800),
+          createDataCell("", 2300, 800)
+        ]
+      })
+    );
+
+    // ===== BUAT TABEL =====
+    const table = new Table({
+      width: {
+        size: 10000,
+        type: WidthType.DXA
+      },
+      rows: [headerRow, ...dataRows, ...emptyRows]
+    });
+
+    // ===== BUAT DOKUMEN =====
+    const doc = new Document({
+      sections: [{
+        properties: {
+          page: {
+            margin: {
+              top    : 1000,
+              right  : 1000,
+              bottom : 1000,
+              left   : 1000
+            }
+          }
+        },
+        children: [
+          ...headerParagraphs,
+          table,
+          // Footer
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : " ",
+                size : 20
+              })
+            ],
+            spacing: { before: 200 }
+          })
+        ]
+      }]
+    });
+
+    // ===== DOWNLOAD =====
+    Packer.toBlob(doc).then(blob => {
+      hideLoading();
+      const safeName = event.title
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .replace(/\s+/g, "_");
+      downloadFile(blob,
+        `DaftarHadir_${safeName}_${getDateStamp()}.docx`
+      );
+      showToast("✅ Daftar hadir berhasil diexport!", "success");
+    });
+
+  } catch(err) {
+    hideLoading();
+    showToast("Gagal buat dokumen: " + err.message, "error");
+    console.error(err);
+  }
+}
+
+// ===== HELPER: BUAT CELL HEADER =====
+function createHeaderCell(text, width) {
+  const { TableCell, TableRow, Paragraph, TextRun,
+          AlignmentType, WidthType, BorderStyle,
+          ShadingType, VerticalAlign } = docx;
+
+  return new TableCell({
+    width: { size: width, type: WidthType.DXA },
+    shading: {
+      type : ShadingType.CLEAR,
+      fill : "E8E8E8"
+    },
+    verticalAlign: VerticalAlign.CENTER,
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children : [
+          new TextRun({
+            text : text,
+            bold : true,
+            size : 20,
+            font : "Arial"
+          })
+        ]
+      })
+    ]
+  });
+}
+
+// ===== HELPER: BUAT CELL DATA =====
+function createDataCell(text, width, minHeight = 600) {
+  const { TableCell, Paragraph, TextRun,
+          AlignmentType, WidthType, VerticalAlign } = docx;
+
+  return new TableCell({
+    width: { size: width, type: WidthType.DXA },
+    verticalAlign: VerticalAlign.CENTER,
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing  : {
+          before: minHeight / 4,
+          after : minHeight / 4
+        },
+        children: [
+          new TextRun({
+            text : text,
+            size : 20,
+            font : "Arial"
+          })
+        ]
+      })
+    ]
+  });
+}
+
+// ===== HELPER: FORMAT TANGGAL WORD =====
+function formatDateWord(isoString) {
+  if (!isoString) return "-";
+  return new Date(isoString).toLocaleDateString("id-ID", {
+    weekday : "long",
+    day     : "numeric",
+    month   : "long",
+    year    : "numeric"
+  });
+}
+
+// ===== HELPER: FORMAT WAKTU WORD =====
+function formatTimeWord(isoString) {
+  if (!isoString) return "-";
+  return new Date(isoString).toLocaleTimeString("id-ID", {
+    hour   : "2-digit",
+    minute : "2-digit"
+  });
+}
+
+// ===== LOAD DOCX.JS =====
+function loadDocxJs(callback) {
+  if (typeof docx !== "undefined") { callback(); return; }
+
+  showLoading("Memuat library dokumen...");
+  const script = document.createElement("script");
+  script.src = "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js";
+  script.onload = () => {
+    hideLoading();
+    callback();
+  };
+  script.onerror = () => {
+    hideLoading();
+    showToast(
+      "Gagal memuat library Word. Periksa koneksi internet.",
+      "error"
+    );
+  };
+  document.head.appendChild(script);
+}
+
+// Export semua event sekaligus ke Word
+async function exportAllAttendanceWord() {
+  const eventId = document.getElementById("export-event").value;
+
+  if (!eventId || eventId === "all") {
+    showToast(
+      "Pilih satu event spesifik untuk export Word",
+      "warning"
+    );
+    return;
+  }
+
+  await exportAttendanceWord(eventId);
+}
