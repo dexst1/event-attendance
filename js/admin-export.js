@@ -327,11 +327,18 @@ function generateWordDocument(event, logs, userMap) {
   showLoading("Membuat dokumen Word...");
 
   try {
-    const {
-      Document, Packer, Paragraph, Table, TableRow, TableCell,
-      TextRun, AlignmentType, WidthType, BorderStyle,
-      ImageRun, HeadingLevel, ShadingType, VerticalAlign
-    } = docx;
+    const Document      = docx.Document;
+    const Packer        = docx.Packer;
+    const Paragraph     = docx.Paragraph;
+    const Table         = docx.Table;
+    const TableRow      = docx.TableRow;
+    const TableCell     = docx.TableCell;
+    const TextRun       = docx.TextRun;
+    const AlignmentType = docx.AlignmentType;
+    const WidthType     = docx.WidthType;
+    const BorderStyle   = docx.BorderStyle;
+    const ShadingType   = docx.ShadingType;
+    const VerticalAlign = docx.VerticalAlign;
 
     // ===== HEADER PARAGRAPHS =====
     const headerParagraphs = [
@@ -557,9 +564,13 @@ function generateWordDocument(event, logs, userMap) {
 
 // ===== HELPER: BUAT CELL HEADER =====
 function createHeaderCell(text, width) {
-  const { TableCell, TableRow, Paragraph, TextRun,
-          AlignmentType, WidthType, BorderStyle,
-          ShadingType, VerticalAlign } = docx;
+  const TableCell   = docx.TableCell;
+  const Paragraph   = docx.Paragraph;
+  const TextRun     = docx.TextRun;
+  const AlignmentType = docx.AlignmentType;
+  const WidthType   = docx.WidthType;
+  const ShadingType = docx.ShadingType;
+  const VerticalAlign = docx.VerticalAlign;
 
   return new TableCell({
     width: { size: width, type: WidthType.DXA },
@@ -584,10 +595,15 @@ function createHeaderCell(text, width) {
   });
 }
 
+
 // ===== HELPER: BUAT CELL DATA =====
 function createDataCell(text, width, minHeight = 600) {
-  const { TableCell, Paragraph, TextRun,
-          AlignmentType, WidthType, VerticalAlign } = docx;
+  const TableCell   = docx.TableCell;
+  const Paragraph   = docx.Paragraph;
+  const TextRun     = docx.TextRun;
+  const AlignmentType = docx.AlignmentType;
+  const WidthType   = docx.WidthType;
+  const VerticalAlign = docx.VerticalAlign;
 
   return new TableCell({
     width: { size: width, type: WidthType.DXA },
@@ -597,7 +613,7 @@ function createDataCell(text, width, minHeight = 600) {
         alignment: AlignmentType.CENTER,
         spacing  : {
           before: minHeight / 4,
-          after : minHeight / 4
+          after  : minHeight / 4
         },
         children: [
           new TextRun({
