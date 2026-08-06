@@ -149,22 +149,57 @@
     </div>
 
     <!-- Tanda Tangan Digital -->
-    <div class="glass rounded-2xl p-5 space-y-3">
-      <div class="flex justify-between items-center">
-        <h2 class="text-sm font-semibold text-gray-300">Tanda Tangan Digital</h2>
-        <button onclick="clearCanvas()"
-          class="text-[11px] text-rose-400 hover:text-rose-300 
-            px-2 py-1 rounded-lg hover:bg-rose-500/10 transition">
-          🗑 Hapus
-        </button>
-      </div>
-      <p class="text-gray-500 text-[10px]">
-        Gambar tanda tangan Anda di bawah ini <span class="text-rose-400">*</span>
-      </p>
-      <canvas id="sig-canvas" width="500" height="180"
-        class="w-full bg-black/40 border border-white/10 rounded-xl">
-      </canvas>
+<div class="glass rounded-2xl p-5 space-y-3">
+  <h2 class="text-sm font-semibold text-gray-300">
+    Tanda Tangan Digital
+  </h2>
+  <p class="text-gray-500 text-[10px]">
+    Gambar tanda tangan Anda di bawah ini
+    <span class="text-rose-400">*</span>
+  </p>
+
+  <!-- Canvas -->
+  <div class="relative">
+    <canvas id="sig-canvas" width="500" height="180"
+      class="w-full bg-transparent border border-white/10
+        rounded-xl" style="background: #0a0a14;">
+    </canvas>
+
+    <!-- Tombol Hapus di kiri bawah -->
+    <button onclick="clearCanvas()"
+      class="absolute bottom-3 left-3
+        flex items-center gap-1.5
+        px-3 py-1.5 rounded-xl text-[11px] font-semibold
+        bg-rose-500/20 text-rose-400
+        border border-rose-500/30
+        hover:bg-rose-500/30 transition">
+      🗑 Hapus
+    </button>
+
+    <!-- Status tanda tangan -->
+    <div id="sig-status"
+      class="absolute bottom-3 right-3
+        text-[10px] text-gray-600">
+      Gambar di sini
     </div>
+  </div>
+
+  <!-- Preview tanda tangan tersimpan -->
+  <div id="sig-preview-wrap" class="hidden space-y-2">
+    <p class="text-gray-500 text-[10px]">
+      Tanda tangan tersimpan:
+    </p>
+    <div class="bg-indigo-500/10 border border-indigo-500/20
+      rounded-xl p-2 flex items-center justify-center"
+      style="min-height: 80px;">
+      <img id="sig-preview-img" src="" alt="Tanda Tangan"
+        class="max-h-20 object-contain opacity-80">
+    </div>
+    <p class="text-[10px] text-amber-400">
+      ⚠️ Gambar ulang untuk mengganti tanda tangan
+    </p>
+  </div>
+</div>
 
     <!-- Tombol Simpan -->
     <button onclick="saveProfile()" id="btn-save"
@@ -198,56 +233,93 @@
     const ctx = canvas.getContext("2d");
 
     function initCanvas() {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      const displayWidth = rect.width || 500;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const displayWidth = rect.width || 500;
 
-      canvas.width = displayWidth * dpr;
-      canvas.height = 180 * dpr;
-      canvas.style.height = "180px";
-      ctx.scale(dpr, dpr);
-      ctx.strokeStyle = "#FFFFFF";
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+  canvas.width = displayWidth * dpr;
+  canvas.height = 180 * dpr;
+  canvas.style.height = "180px";
+  ctx.scale(dpr, dpr);
 
-      const getPos = (e) => {
-        const r = canvas.getBoundingClientRect();
-        const src = e.touches ? e.touches[0] : e;
-        return {
-          x: (src.clientX - r.left),
-          y: (src.clientY - r.top)
-        };
-      };
+  // Warna tanda tangan: BIRU
+  ctx.strokeStyle = "#3b82f6";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
 
-      canvas.addEventListener("mousedown", (e) => {
-        isDrawing = true; hasDrawn = true;
-        ctx.beginPath();
-        const p = getPos(e); ctx.moveTo(p.x, p.y);
-      });
-      canvas.addEventListener("mousemove", (e) => {
-        if (!isDrawing) return;
-        const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
-      });
-      canvas.addEventListener("mouseup", () => isDrawing = false);
-      canvas.addEventListener("mouseleave", () => isDrawing = false);
-      canvas.addEventListener("touchstart", (e) => {
-        e.preventDefault(); isDrawing = true; hasDrawn = true;
-        ctx.beginPath();
-        const p = getPos(e); ctx.moveTo(p.x, p.y);
-      }, { passive: false });
-      canvas.addEventListener("touchmove", (e) => {
-        e.preventDefault();
-        if (!isDrawing) return;
-        const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke();
-      }, { passive: false });
-      canvas.addEventListener("touchend", () => isDrawing = false);
-    }
+  const getPos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return {
+      x: src.clientX - r.left,
+      y: src.clientY - r.top
+    };
+  };
+
+  canvas.addEventListener("mousedown", (e) => {
+    isDrawing = true;
+    hasDrawn = true;
+    ctx.beginPath();
+    const p = getPos(e);
+    ctx.moveTo(p.x, p.y);
+    updateSigStatus();
+  });
+  canvas.addEventListener("mousemove", (e) => {
+    if (!isDrawing) return;
+    // Set ulang warna setiap stroke
+    ctx.strokeStyle = "#3b82f6";
+    const p = getPos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  });
+  canvas.addEventListener("mouseup", () => {
+    isDrawing = false;
+    updateSigStatus();
+  });
+  canvas.addEventListener("mouseleave", () => {
+    isDrawing = false;
+  });
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault();
+    isDrawing = true;
+    hasDrawn = true;
+    ctx.beginPath();
+    const p = getPos(e);
+    ctx.moveTo(p.x, p.y);
+    updateSigStatus();
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => {
+    e.preventDefault();
+    if (!isDrawing) return;
+    ctx.strokeStyle = "#3b82f6";
+    const p = getPos(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }, { passive: false });
+  canvas.addEventListener("touchend", () => {
+    isDrawing = false;
+    updateSigStatus();
+  });
+}
+
+function updateSigStatus() {
+  const el = document.getElementById("sig-status");
+  if (!el) return;
+  if (hasDrawn) {
+    el.textContent = "✓ Tanda tangan siap";
+    el.className = "absolute bottom-3 right-3 text-[10px] text-emerald-500";
+  } else {
+    el.textContent = "Gambar di sini";
+    el.className = "absolute bottom-3 right-3 text-[10px] text-gray-600";
+  }
+}
 
     function clearCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      hasDrawn = false;
-    }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hasDrawn = false;
+  updateSigStatus();
+}
 
     // ===== FOTO PREVIEW =====
     function previewPhoto(event) {
@@ -333,11 +405,19 @@
   }
 
   initCanvas();
+  // Tampilkan preview tanda tangan tersimpan
+if (user.signature_url && user.signature_url.startsWith("http")) {
+  const wrap = document.getElementById("sig-preview-wrap");
+  const img = document.getElementById("sig-preview-img");
+  if (wrap && img) {
+    img.src = user.signature_url;
+    wrap.classList.remove("hidden");
+  }
+}
 };
 
     // ===== SAVE PROFILE =====
-    // ===== SAVE PROFILE =====
-async function saveProfile() {
+   async function saveProfile() {
   const name = document.getElementById("input-name").value.trim();
   const badge = document.getElementById("input-badge").value.trim();
   const dept = document.getElementById("input-dept").value.trim();
@@ -345,22 +425,25 @@ async function saveProfile() {
 
   if (!name) { showToast("Nama lengkap wajib diisi", "error"); return; }
   if (!badge) { showToast("Nomor Badge/NIK wajib diisi", "error"); return; }
-  if (!hasDrawn) { showToast("Tanda tangan wajib dibuat", "error"); return; }
+
+  // Cek tanda tangan — wajib ada (baru atau tersimpan)
+  const hasSavedSignature = user.has_signature;
+  if (!hasDrawn && !hasSavedSignature) {
+    showToast("Tanda tangan wajib dibuat", "error");
+    return;
+  }
 
   const btn = document.getElementById("btn-save");
   btn.disabled = true;
   btn.textContent = "Menyimpan...";
-  showLoading("Menyimpan profil...");
+  showLoading("Menyimpan data profil...");
 
-  const signatureData = canvas.toDataURL("image/png");
-
-  // Step 1: Simpan data profil teks dulu
+  // Step 1: Simpan data teks
   const result = await callAPI("saveFullProfile", {
-    fullName      : name,
-    badgeNumber   : badge,
-    bagian        : dept,
-    phone         : phone,
-    signatureData : signatureData.substring(0, 500)
+    fullName  : name,
+    badgeNumber: badge,
+    bagian    : dept,
+    phone     : phone
   });
 
   if (!result.success) {
@@ -371,21 +454,35 @@ async function saveProfile() {
     return;
   }
 
-  // Step 2: Upload foto jika ada
+  // Step 2: Upload tanda tangan jika ada yang baru
+  if (hasDrawn) {
+    showLoading("Mengupload tanda tangan...");
+
+    // Export canvas sebagai PNG transparan
+    const signatureData = canvas.toDataURL("image/png");
+
+    const sigResult = await callAPI("uploadSignature", {
+      base64Data: signatureData
+    });
+
+    if (!sigResult.success) {
+      showToast(
+        "Profil tersimpan, tapi tanda tangan gagal: " + sigResult.message,
+        "warning"
+      );
+    } else {
+      updateSessionUser({ has_signature: true });
+    }
+  }
+
+  // Step 3: Upload foto jika ada yang baru
   if (photoBase64) {
     showLoading("Mengupload foto profil...");
     const photoResult = await callAPI("uploadProfilePhoto", {
       base64Data: photoBase64
     });
-
     if (photoResult.success) {
-      // Update session dengan URL foto baru
       updateSessionUser({ photo_url: photoResult.photoUrl });
-    } else {
-      showToast(
-        "Profil tersimpan, tapi foto gagal upload: " + photoResult.message,
-        "warning"
-      );
     }
   }
 
@@ -393,7 +490,6 @@ async function saveProfile() {
   btn.disabled = false;
   btn.innerHTML = "💾 Simpan Profil";
 
-  // Update session
   storeUser({
     ...user,
     ...result.updatedUser,
@@ -407,7 +503,6 @@ async function saveProfile() {
         ? "admin.html" : "index.html";
   }, 1500);
 }
-
 
     // ===== NAVIGATION =====
     function goBack() {
