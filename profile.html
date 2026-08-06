@@ -87,38 +87,59 @@
       </div>
     </div>
 
-    <!-- Data Diri -->
+        <!-- Data Diri -->
     <div class="glass rounded-2xl p-5 space-y-4">
       <h2 class="text-sm font-semibold text-gray-300">Data Diri</h2>
 
       <!-- Nama Lengkap -->
       <div>
-        <label class="label">Nama Lengkap <span class="text-rose-400">*</span></label>
-        <input type="text" id="input-name" placeholder="Masukkan nama lengkap"
+        <label class="label">
+          Nama Lengkap <span class="text-rose-400">*</span>
+        </label>
+        <input type="text" id="input-name"
+          placeholder="Masukkan nama lengkap"
           class="input-field" />
       </div>
 
       <!-- Nomor Badge / NIK -->
       <div>
-        <label class="label">Nomor Badge / NIK <span class="text-rose-400">*</span></label>
-        <input type="text" id="input-badge" placeholder="Masukkan nomor badge atau NIK"
+        <label class="label">
+          Nomor Badge / NIK <span class="text-rose-400">*</span>
+        </label>
+        <input type="text" id="input-badge"
+          placeholder="Masukkan nomor badge atau NIK"
           class="input-field" />
       </div>
 
-      <!-- Departemen -->
+      <!-- Jabatan -->
+      <div>
+        <label class="label">Jabatan</label>
+        <input type="text" id="input-jabatan"
+          placeholder="Contoh: Staff, Supervisor, Manager"
+          class="input-field" />
+      </div>
+
+      <!-- Bagian -->
       <div>
         <label class="label">Bagian</label>
-        <input type="text" id="input-dept" placeholder="Contoh: HR, IT, Finance"
+        <input type="text" id="input-dept"
+          placeholder="Contoh: Laboratorium, Produksi, HR"
           class="input-field" />
       </div>
 
       <!-- Nomor HP -->
       <div>
         <label class="label">Nomor HP</label>
-        <input type="tel" id="input-phone" placeholder="Contoh: 08123456789"
-          class="input-field" />
+        <input type="tel" id="input-phone"
+          placeholder="Contoh: 08123456789"
+          class="input-field"
+          inputmode="numeric" />
+        <p class="text-gray-600 text-[10px] mt-1">
+          Pastikan diawali angka 0
+        </p>
       </div>
     </div>
+
 
     <!-- Foto Profil -->
     <div class="glass rounded-2xl p-5 space-y-4">
@@ -379,6 +400,9 @@ function updateSigStatus() {
   if (user.bagian) {
     document.getElementById("input-dept").value = user.bagian;
   }
+  if (user.jabatan) {
+  document.getElementById("input-jabatan").value = user.jabatan;
+  }
   if (user.phone) {
     document.getElementById("input-phone").value = user.phone;
   }
@@ -421,6 +445,7 @@ if (user.signature_url && user.signature_url.startsWith("http")) {
   const name = document.getElementById("input-name").value.trim();
   const badge = document.getElementById("input-badge").value.trim();
   const dept = document.getElementById("input-dept").value.trim();
+  const jabatan = document.getElementById("input-jabatan").value.trim();
   const phone = document.getElementById("input-phone").value.trim();
 
   if (!name) { showToast("Nama lengkap wajib diisi", "error"); return; }
@@ -440,10 +465,11 @@ if (user.signature_url && user.signature_url.startsWith("http")) {
 
   // Step 1: Simpan data teks
   const result = await callAPI("saveFullProfile", {
-    fullName  : name,
-    badgeNumber: badge,
-    bagian    : dept,
-    phone     : phone
+    fullName    : name,
+    badgeNumber : badge,
+    jabatan     : jabatan,
+    bagian      : dept,
+    phone       : phone
   });
 
   if (!result.success) {
