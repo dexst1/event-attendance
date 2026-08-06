@@ -283,41 +283,55 @@ function getDateStamp() {
 async function exportAttendanceWord(eventId) {
   showLoading("Menyiapkan data daftar hadir...");
 
-  // Ambil data event
   const eventsResult = await callAPI("getAllEvents");
   const logsResult = await callAPI("getAttendanceLogs", {
     eventId : eventId,
     limit   : 9999
   });
-
-  hideLoading();
+  const usersResult = await callAPI("getAllUsers");
 
   if (!eventsResult.success || !logsResult.success) {
+    hideLoading();
     showToast("Gagal mengambil data", "error");
     return;
   }
 
   const event = eventsResult.events.find(e => e.id === eventId);
   if (!event) {
+    hideLoading();
     showToast("Event tidak ditemukan", "error");
     return;
   }
 
   const logs = logsResult.logs || [];
-
-  // Ambil data user lengkap untuk signature
-  const usersResult = await callAPI("getAllUsers");
   const users = usersResult.success ? usersResult.users : [];
 
   // Map email → user data
   const userMap = {};
   users.forEach(u => { userMap[u.email] = u; });
 
-  // Generate Word
-  generateWordDocument(event, logs, userMap);
+  // Pre-fetch semua gambar tanda tangan
+  showLoading("Mengambil tanda tangan...");
+  const signatureBuffers = {};
+
+  await Promise.all(logs.map(async (log) => {
+    const userData = userMap[log.email];
+    if (userData && userData.signature_url) {
+      const buffer = await fetchImageAsBuffer(
+        userData.signature_url
+      );
+      if (buffer) {
+        signatureBuffers[log.email] = buffer;
+      }
+    }
+  }));
+
+  hideLoading();
+  generateWordDocument(event, logs, userMap, signatureBuffers);
 }
 
-function generateWordDocument(event, logs, userMap) {
+
+function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
   // Load docx.js jika belum ada
   if (typeof docx === "undefined") {
     loadDocxJs(() => generateWordDocument(event, logs, userMap));
@@ -454,36 +468,54 @@ function generateWordDocument(event, logs, userMap) {
 
     // ===== TABEL DATA ROWS =====
     const dataRows = logs.map((log, index) => {
-      const userData = userMap[log.email] || {};
-      const nama = userData.full_name || log.full_name || "-";
-      const jabatan = userData.jabatan || "-";
-      const unitKerja = userData.bagian || "-";
-      const phone = userData.phone
-        ? String(userData.phone)
-        : "-";
+    const userData = userMap[log.email] || {};
+    const nama     = userData.full_name || log.full_name || "-";
+    const jabatan  = userData.jabatan || "-";
+    const unitKerja = userData.bagian || "-";
+    const phone    = userData.phone ? String(userData.phone) : "-";
 
-      // Signature cell
-      let signatureCell;
-      if (userData.signature_url &&
-          userData.signature_url.startsWith("http")) {
-        // Tampilkan placeholder tanda tangan
-        // (gambar dari URL tidak bisa langsung di docx.js)
-        signatureCell = createDataCell("", 2300, 1200);
-      } else {
-        signatureCell = createDataCell("", 2300, 1200);
-      }
+    // Signature cell — coba tampilkan gambar
+    let signatureCell;
+    const sigBuffer = signatureBuffers[log.email];
 
-      return new TableRow({
-        children: [
-          createDataCell(String(index + 1), 500, 800),
-          createDataCell(nama, 2200, 800),
-          createDataCell(jabatan, 1800, 800),
-          createDataCell(unitKerja, 1800, 800),
-          createDataCell(phone, 1400, 800),
-          signatureCell
+    if (sigBuffer) {
+      // Ada gambar tanda tangan
+      signatureCell = new TableCell({
+        width        : { size: 2300, type: WidthType.DXA },
+        verticalAlign: VerticalAlign.CENTER,
+        children     : [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing  : { before: 100, after: 100 },
+            children : [
+              new docx.ImageRun({
+                data        : sigBuffer,
+                transformation: {
+                  width  : 100,
+                  height : 50
+                }
+              })
+            ]
+          })
         ]
       });
+    } else {
+      // Tidak ada gambar — biarkan kosong
+      signatureCell = createDataCell("", 2300, 800);
+    }
+
+    return new TableRow({
+      children: [
+        createDataCell(String(index + 1), 500, 800),
+        createDataCell(nama, 2200, 800),
+        createDataCell(jabatan, 1800, 800),
+        createDataCell(unitKerja, 1800, 800),
+        createDataCell(phone, 1400, 800),
+        signatureCell
+      ]
     });
+  });
+
 
     // Tambah baris kosong jika kurang dari 10
     const minRows = Math.max(10, logs.length);
@@ -690,3 +722,20 @@ async function exportAllAttendanceWord() {
 
   await exportAttendanceWord(eventId);
 }
+
+// ===== FETCH GAMBAR SEBAGAI ARRAYBUFFER =====
+async function fetchImageAsBuffer(url) {
+  try {
+    if (!url || !url.startsWith("http")) return null;
+
+    const response = await fetch(url, { mode: "cors" });
+    if (!response.ok) return null;
+
+    const buffer = await response.arrayBuffer();
+    return buffer;
+  } catch(err) {
+    console.warn("Gagal fetch gambar:", err.message);
+    return null;
+  }
+}
+
