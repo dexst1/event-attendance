@@ -332,7 +332,7 @@ async function exportAttendanceWord(eventId) {
 function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
   // Load docx.js jika belum ada
   if (typeof docx === "undefined") {
-    loadDocxJs(() => generateWordDocument(event, logs, userMap));
+    loadDocxJs(() => generateWordDocument(event, logs, userMap, signatureBuffers));
     return;
   }
 
