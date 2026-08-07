@@ -519,12 +519,20 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
     );
 
     // ===== BUAT TABEL =====
+    const tableHeaderRow = new TableRow({
+      tableHeader: true,
+      children: [
+        createHeaderCell("No.", 500),
+        createHeaderCell("Nama Lengkap", 2200),
+        createHeaderCell("Jabatan", 1800),
+        createHeaderCell("Unit Kerja", 1800),
+        createHeaderCell("No. HP", 1400),
+        createHeaderCell("Tanda Tangan", 2300)
+      ]
+    });
     const table = new Table({
-      width: {
-        size: 10000,
-        type: WidthType.DXA
-      },
-      rows: [headerRow, ...dataRows, ...emptyRows]
+      width: { size: 10000, type: WidthType.DXA },
+      rows: [tableHeaderRow, ...dataRows, ...emptyRows]
     });
 
     // ===== BUAT DOKUMEN =====
