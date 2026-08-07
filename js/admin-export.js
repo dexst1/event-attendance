@@ -312,19 +312,17 @@ async function exportAttendanceWord(eventId) {
 
   // Pre-fetch semua gambar tanda tangan
   showLoading("Mengambil tanda tangan...");
-  const signatureBuffers = {};
+    const signatureBuffers = {};
 
-  await Promise.all(logs.map(async (log) => {
-    const userData = userMap[log.email];
-    if (userData && userData.signature_url) {
-      const buffer = await fetchImageAsBuffer(
-        userData.signature_url
-      );
-      if (buffer) {
-        signatureBuffers[log.email] = buffer;
+    await Promise.all(logs.map(async (log) => {
+      const userData = userMap[log.email];
+      if (userData && userData.signature_url) {
+        const imgData = await fetchImageAsBuffer(userData.signature_url);
+        if (imgData) {
+          signatureBuffers[log.email] = imgData;
+        }
       }
-    }
-  }));
+    }));
 
   hideLoading();
   generateWordDocument(event, logs, userMap, signatureBuffers);
@@ -474,25 +472,26 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
     const unitKerja = userData.bagian || "-";
     const phone    = userData.phone ? String(userData.phone) : "-";
 
-    // Signature cell — coba tampilkan gambar
+    // Signature cell
     let signatureCell;
-    const sigBuffer = signatureBuffers[log.email];
+    const imgData = signatureBuffers[log.email];
 
-    if (sigBuffer) {
-      // Ada gambar tanda tangan
+    if (imgData && imgData.buffer) {
       signatureCell = new TableCell({
         width        : { size: 2300, type: WidthType.DXA },
         verticalAlign: VerticalAlign.CENTER,
         children     : [
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing  : { before: 100, after: 100 },
+            spacing  : { before: 80, after: 80 },
             children : [
               new docx.ImageRun({
-                data        : sigBuffer,
-                transformation: {
-                  width  : 100,
-                  height : 50
+                data            : imgData.buffer,
+                type            : imgData.mimeType === "image/png"
+                                  ? "png" : "jpg",
+                transformation  : {
+                  width  : 120,
+                  height : 55
                 }
               })
             ]
@@ -500,7 +499,6 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
         ]
       });
     } else {
-      // Tidak ada gambar — biarkan kosong
       signatureCell = createDataCell("", 2300, 800);
     }
 
@@ -723,19 +721,54 @@ async function exportAllAttendanceWord() {
   await exportAttendanceWord(eventId);
 }
 
-// ===== FETCH GAMBAR SEBAGAI ARRAYBUFFER =====
-async function fetchImageAsBuffer(url) {
-  try {
-    if (!url || !url.startsWith("http")) return null;
+  // ===== FETCH GAMBAR SEBAGAI ARRAYBUFFER =====
+  async function fetchImageAsBuffer(signatureUrl) {
+    try {
+      if (!signatureUrl || !signatureUrl.startsWith("http")) {
+        return null;
+      }
 
-    const response = await fetch(url, { mode: "cors" });
-    if (!response.ok) return null;
+      // Extract fileId dari URL Google Drive
+      // Format: https://lh3.googleusercontent.com/d/FILE_ID=w400
+      let fileId = null;
 
-    const buffer = await response.arrayBuffer();
-    return buffer;
-  } catch(err) {
-    console.warn("Gagal fetch gambar:", err.message);
-    return null;
+      if (signatureUrl.includes("lh3.googleusercontent.com/d/")) {
+        fileId = signatureUrl
+          .split("/d/")[1]
+          .split("=")[0];
+      } else if (signatureUrl.includes("id=")) {
+        fileId = signatureUrl
+          .split("id=")[1]
+          .split("&")[0];
+      }
+
+      if (!fileId) {
+        console.warn("Tidak bisa extract fileId dari URL:", signatureUrl);
+        return null;
+      }
+
+      // Fetch via GAS proxy
+      const result = await callAPI("getImageAsBase64", { fileId });
+
+      if (!result.success || !result.base64) {
+        console.warn("Gagal fetch gambar via proxy:", result.message);
+        return null;
+      }
+
+      // Convert Base64 ke ArrayBuffer
+      const binary = atob(result.base64);
+      const buffer = new ArrayBuffer(binary.length);
+      const view = new Uint8Array(buffer);
+      for (let i = 0; i < binary.length; i++) {
+        view[i] = binary.charCodeAt(i);
+      }
+
+      return { buffer, mimeType: result.mimeType || "image/png" };
+
+    } catch(err) {
+      console.warn("Error fetch gambar:", err.message);
+      return null;
+    }
   }
-}
+
 
