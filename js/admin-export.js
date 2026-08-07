@@ -352,115 +352,99 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
     const ShadingType   = docx.ShadingType;
     const VerticalAlign = docx.VerticalAlign;
 
-    // ===== HEADER PARAGRAPHS =====
-    const headerParagraphs = [
-      new Paragraph({
-        children: [
-          new TextRun({
-            text : "COMMUNITY OF PRACTICE (COP)",
-            bold : true,
-            size : 28,
-            font : "Arial"
-          })
-        ],
-        alignment: AlignmentType.LEFT,
-        spacing  : { after: 200 }
-      }),
+       // ===== HEADER MENGGUNAKAN TABEL TANPA BORDER =====
+    const headerTable = new Table({
+      width: { size: 10000, type: WidthType.DXA },
+      borders: {
+        top    : { style: docx.BorderStyle.NONE, size: 0 },
+        bottom : { style: docx.BorderStyle.NONE, size: 0 },
+        left   : { style: docx.BorderStyle.NONE, size: 0 },
+        right  : { style: docx.BorderStyle.NONE, size: 0 },
+        insideH: { style: docx.BorderStyle.NONE, size: 0 },
+        insideV: { style: docx.BorderStyle.NONE, size: 0 }
+      },
+      rows: [
+        // Judul
+        new TableRow({
+          children: [
+            new TableCell({
+              columnSpan: 3,
+              borders: noBorder(),
+              children: [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text : "COMMUNITY OF PRACTICE (COP)",
+                      bold : true,
+                      size : 28,
+                      font : "Arial"
+                    })
+                  ],
+                  spacing: { after: 160 }
+                })
+              ]
+            })
+          ]
+        }),
 
-      // Keterangan Kegiatan
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Keterangan Kegiatan\t: " +
-                  (event.keterangan || "-"),
-            size: 22,
-            font: "Arial"
-          })
-        ],
-        spacing: { after: 80 }
-      }),
+        // Keterangan Kegiatan
+        makeHeaderRow(
+          "Keterangan Kegiatan",
+          event.keterangan || "-"
+        ),
 
-      // Tema/Topik
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Tema/Topik\t\t: " + (event.title || "-"),
-            size: 22,
-            font: "Arial"
-          })
-        ],
-        spacing: { after: 80 }
-      }),
+        // Tema/Topik
+        makeHeaderRow(
+          "Tema/Topik",
+          event.title || "-"
+        ),
 
-      // Hari/Tanggal
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Hari/Tanggal\t\t: " +
-                  formatDateWord(event.startTime),
-            size: 22,
-            font: "Arial"
-          })
-        ],
-        spacing: { after: 80 }
-      }),
+        // Hari/Tanggal
+        makeHeaderRow(
+          "Hari/Tanggal",
+          formatDateWord(event.startTime)
+        ),
 
-      // Waktu
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Waktu\t\t\t: " +
-                  formatTimeWord(event.startTime) +
-                  " - " +
-                  formatTimeWord(event.endTime) +
-                  " WIB",
-            size: 22,
-            font: "Arial"
-          })
-        ],
-        spacing: { after: 80 }
-      }),
+        // Waktu
+        makeHeaderRow(
+          "Waktu",
+          formatTimeWord(event.startTime) +
+          " - " +
+          formatTimeWord(event.endTime) +
+          " WIB"
+        ),
 
-      // Tempat
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Tempat\t\t\t: " + (event.tempat || "-"),
-            size: 22,
-            font: "Arial"
-          })
-        ],
-        spacing: { after: 80 }
-      }),
+        // Tempat
+        makeHeaderRow(
+          "Tempat",
+          event.tempat || "-"
+        ),
 
-      // Pembicara
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: "Pembicara\t\t: " +
-                  (event.pembicara && event.pembicara.length > 0
-                    ? event.pembicara.map(p =>
-                        p.nama + (p.asal ? ` (${p.asal})` : "")
-                      ).join(", ")
-                    : "-"),
-            size: 22,
-            font: "Arial"
-          })
-        ],
-        spacing: { after: 300 }
-      })
-    ];
+        // Pembicara
+        makeHeaderRow(
+          "Pembicara",
+          event.pembicara && event.pembicara.length > 0
+            ? event.pembicara.map(p =>
+                p.nama + (p.asal ? ` (${p.asal})` : "")
+              ).join(", ")
+            : "-"
+        ),
 
-    // ===== TABEL HEADER ROW =====
-    const headerRow = new TableRow({
-      tableHeader: true,
-      children   : [
-        createHeaderCell("No.", 500),
-        createHeaderCell("Nama Lengkap", 2200),
-        createHeaderCell("Jabatan", 1800),
-        createHeaderCell("Unit Kerja", 1800),
-        createHeaderCell("No. HP", 1400),
-        createHeaderCell("Tanda Tangan", 2300)
+        // Baris kosong sebelum tabel
+        new TableRow({
+          children: [
+            new TableCell({
+              columnSpan: 3,
+              borders: noBorder(),
+              children: [
+                new Paragraph({
+                  children: [new TextRun({ text: " ", size: 20 })],
+                  spacing: { after: 160 }
+                })
+              ]
+            })
+          ]
+        })
       ]
     });
 
@@ -557,7 +541,7 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
           }
         },
         children: [
-          ...headerParagraphs,
+          headerTable,
           table,
           // Footer
           new Paragraph({
@@ -770,5 +754,85 @@ async function exportAllAttendanceWord() {
       return null;
     }
   }
+// ===== HELPER: NO BORDER =====
+function noBorder() {
+  return {
+    top    : { style: docx.BorderStyle.NONE, size: 0 },
+    bottom : { style: docx.BorderStyle.NONE, size: 0 },
+    left   : { style: docx.BorderStyle.NONE, size: 0 },
+    right  : { style: docx.BorderStyle.NONE, size: 0 }
+  };
+}
+
+// ===== HELPER: BUAT BARIS HEADER =====
+function makeHeaderRow(label, value) {
+  const TableRow  = docx.TableRow;
+  const TableCell = docx.TableCell;
+  const Paragraph = docx.Paragraph;
+  const TextRun   = docx.TextRun;
+
+  const cellStyle = {
+    borders : noBorder(),
+    children: []
+  };
+
+  return new TableRow({
+    children: [
+      // Kolom label (lebar tetap)
+      new TableCell({
+        width  : { size: 2400, type: docx.WidthType.DXA },
+        borders: noBorder(),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : label,
+                size : 22,
+                font : "Arial"
+              })
+            ],
+            spacing: { after: 80 }
+          })
+        ]
+      }),
+
+      // Kolom titik dua (lebar kecil)
+      new TableCell({
+        width  : { size: 300, type: docx.WidthType.DXA },
+        borders: noBorder(),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : ":",
+                size : 22,
+                font : "Arial"
+              })
+            ],
+            spacing: { after: 80 }
+          })
+        ]
+      }),
+
+      // Kolom nilai
+      new TableCell({
+        width  : { size: 7300, type: docx.WidthType.DXA },
+        borders: noBorder(),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : value,
+                size : 22,
+                font : "Arial"
+              })
+            ],
+            spacing: { after: 80 }
+          })
+        ]
+      })
+    ]
+  });
+}
 
 
