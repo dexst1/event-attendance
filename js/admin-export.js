@@ -355,14 +355,14 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
        // ===== HEADER MENGGUNAKAN TABEL TANPA BORDER =====
     const headerTable = new Table({
       width: { size: 10000, type: WidthType.DXA },
-      borders: {
-        top    : { style: docx.BorderStyle.NONE, size: 0 },
-        bottom : { style: docx.BorderStyle.NONE, size: 0 },
-        left   : { style: docx.BorderStyle.NONE, size: 0 },
-        right  : { style: docx.BorderStyle.NONE, size: 0 },
-        insideH: { style: docx.BorderStyle.NONE, size: 0 },
-        insideV: { style: docx.BorderStyle.NONE, size: 0 }
-      },
+          borders: {
+            top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            insideH: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+            insideV: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
+          },
       rows: [
         // Judul
         new TableRow({
@@ -762,21 +762,16 @@ async function exportAllAttendanceWord() {
       return null;
     }
   }
-// ===== HELPER: NO BORDER =====
-    const headerTable = new Table({
-      width: { size: 10000, type: WidthType.DXA },
-      borders: {
+
+    // ===== HELPER: NO BORDER =====
+    function noBorder() {
+      return {
         top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
         bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
         left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideH: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        insideV: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
-      },
-      rows: [
-        // ... isi rows tetap sama
-      ]
-    });
+        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
+      };
+    }
 
 
 // ===== HELPER: BUAT BARIS HEADER =====
