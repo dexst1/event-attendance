@@ -276,6 +276,89 @@ function getDateStamp() {
     .replace(/-/g, "");
 }
 
+
+    // ===== HELPER: NO BORDER =====
+    function noBorder() {
+      return {
+        top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
+      };
+    }
+
+
+    // ===== HELPER: BUAT BARIS HEADER =====
+    function makeHeaderRow(label, value) {
+      const TableRow  = docx.TableRow;
+      const TableCell = docx.TableCell;
+      const Paragraph = docx.Paragraph;
+      const TextRun   = docx.TextRun;
+
+      const cellStyle = {
+        borders : noBorder(),
+        children: []
+      };
+
+      return new TableRow({
+        children: [
+          // Kolom label (lebar tetap)
+          new TableCell({
+            width  : { size: 2400, type: docx.WidthType.DXA },
+            borders: noBorder(),
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text : label,
+                    size : 22,
+                    font : "Arial"
+                  })
+                ],
+                spacing: { after: 80 }
+              })
+            ]
+          }),
+
+          // Kolom titik dua (lebar kecil)
+          new TableCell({
+            width  : { size: 300, type: docx.WidthType.DXA },
+            borders: noBorder(),
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text : ":",
+                    size : 22,
+                    font : "Arial"
+                  })
+                ],
+                spacing: { after: 80 }
+              })
+            ]
+          }),
+
+          // Kolom nilai
+          new TableCell({
+            width  : { size: 7300, type: docx.WidthType.DXA },
+            borders: noBorder(),
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text : value,
+                    size : 22,
+                    font : "Arial"
+                  })
+                ],
+                spacing: { after: 80 }
+              })
+            ]
+          })
+        ]
+      });
+    }
+
 // ============================================================
 // EXPORT WORD — Daftar Hadir Event
 // ============================================================
@@ -329,88 +412,6 @@ async function exportAttendanceWord(eventId) {
 }
 
 
-    // ===== HELPER: NO BORDER =====
-    function noBorder() {
-      return {
-        top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
-      };
-    }
-
-
-// ===== HELPER: BUAT BARIS HEADER =====
-function makeHeaderRow(label, value) {
-  const TableRow  = docx.TableRow;
-  const TableCell = docx.TableCell;
-  const Paragraph = docx.Paragraph;
-  const TextRun   = docx.TextRun;
-
-  const cellStyle = {
-    borders : noBorder(),
-    children: []
-  };
-
-  return new TableRow({
-    children: [
-      // Kolom label (lebar tetap)
-      new TableCell({
-        width  : { size: 2400, type: docx.WidthType.DXA },
-        borders: noBorder(),
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text : label,
-                size : 22,
-                font : "Arial"
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        ]
-      }),
-
-      // Kolom titik dua (lebar kecil)
-      new TableCell({
-        width  : { size: 300, type: docx.WidthType.DXA },
-        borders: noBorder(),
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text : ":",
-                size : 22,
-                font : "Arial"
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        ]
-      }),
-
-      // Kolom nilai
-      new TableCell({
-        width  : { size: 7300, type: docx.WidthType.DXA },
-        borders: noBorder(),
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text : value,
-                size : 22,
-                font : "Arial"
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        ]
-      })
-    ]
-  });
-}
-
 function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
   // Load docx.js jika belum ada
   if (typeof docx === "undefined") {
@@ -434,101 +435,65 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
     const ShadingType   = docx.ShadingType;
     const VerticalAlign = docx.VerticalAlign;
 
-       // ===== HEADER MENGGUNAKAN TABEL TANPA BORDER =====
-    const headerTable = new Table({
-      width: { size: 10000, type: WidthType.DXA },
-          borders: {
-            top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            insideH: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-            insideV: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
-          },
-      rows: [
-        // Judul
-        new TableRow({
-          children: [
-            new TableCell({
-              columnSpan: 3,
-              borders: noBorder(),
-              children: [
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text : "COMMUNITY OF PRACTICE (COP)",
-                      bold : true,
-                      size : 28,
-                      font : "Arial"
-                    })
-                  ],
-                  spacing: { after: 160 }
-                })
-              ]
-            })
-          ]
-        }),
+    
+        // ===== HEADER INFO (Paragraph + Tab Stop) =====
+    const TAB = 2800; // posisi tab dalam twips (DXA)
 
-        // Keterangan Kegiatan
-        makeHeaderRow(
-          "Keterangan Kegiatan",
-          event.keterangan || "-"
-        ),
+    function makeInfoLine(label, value) {
+      return new Paragraph({
+        tabStops: [
+          { type: docx.TabStopType.LEFT, position: 2800 },
+          { type: docx.TabStopType.LEFT, position: 3100 }
+        ],
+        spacing: { after: 60 },
+        children: [
+          new TextRun({ text: label, size: 22, font: "Arial", color: "000000" }),
+          new TextRun({ text: "\t: ", size: 22, font: "Arial", color: "000000" }),
+          new TextRun({ text: value, size: 22, font: "Arial", color: "000000" })
+        ]
+      });
+    }
 
-        // Tema/Topik
-        makeHeaderRow(
-          "Tema/Topik",
-          event.title || "-"
-        ),
+    const headerParagraphs = [
+      // Judul
+      new Paragraph({
+        spacing: { after: 160 },
+        children: [
+          new TextRun({
+            text : "COMMUNITY OF PRACTICE (COP)",
+            bold : true,
+            size : 28,
+            font : "Arial",
+            color: "000000"
+          })
+        ]
+      }),
 
-        // Hari/Tanggal
-        makeHeaderRow(
-          "Hari/Tanggal",
-          formatDateWord(event.startTime)
-        ),
+      // Info baris
+      makeInfoLine("Keterangan Kegiatan", event.keterangan || "-"),
+      makeInfoLine("Tema/Topik",          event.title || "-"),
+      makeInfoLine("Hari/Tanggal",        formatDateWord(event.startTime)),
+      makeInfoLine(
+        "Waktu",
+        formatTimeWord(event.startTime) + " - " + formatTimeWord(event.endTime) + " WIB"
+      ),
+      makeInfoLine("Tempat",    event.tempat || "-"),
+      makeInfoLine(
+        "Pembicara",
+        event.pembicara && event.pembicara.length > 0
+          ? event.pembicara.map(p =>
+              p.nama + (p.asal ? ` (${p.asal})` : "")
+            ).join(", ")
+          : "-"
+      ),
 
-        // Waktu
-        makeHeaderRow(
-          "Waktu",
-          formatTimeWord(event.startTime) +
-          " - " +
-          formatTimeWord(event.endTime) +
-          " WIB"
-        ),
+      // Spasi sebelum tabel
+      new Paragraph({
+        spacing: { after: 160 },
+        children: [new TextRun({ text: " ", size: 20 })]
+      })
+    ];
 
-        // Tempat
-        makeHeaderRow(
-          "Tempat",
-          event.tempat || "-"
-        ),
-
-        // Pembicara
-        makeHeaderRow(
-          "Pembicara",
-          event.pembicara && event.pembicara.length > 0
-            ? event.pembicara.map(p =>
-                p.nama + (p.asal ? ` (${p.asal})` : "")
-              ).join(", ")
-            : "-"
-        ),
-
-        // Baris kosong sebelum tabel
-        new TableRow({
-          children: [
-            new TableCell({
-              columnSpan: 3,
-              borders: noBorder(),
-              children: [
-                new Paragraph({
-                  children: [new TextRun({ text: " ", size: 20 })],
-                  spacing: { after: 160 }
-                })
-              ]
-            })
-          ]
-        })
-      ]
-    });
 
     // ===== TABEL DATA ROWS =====
     const dataRows = logs.map((log, index) => {
@@ -631,17 +596,11 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
           }
         },
         children: [
-          headerTable,
+          ...headerParagraphs,   // ← spread, bukan headerTable
           table,
-          // Footer
           new Paragraph({
-            children: [
-              new TextRun({
-                text : " ",
-                size : 20
-              })
-            ],
-            spacing: { before: 200 }
+            children: [new TextRun({ text: " ", size: 20 })],
+            spacing : { before: 200 }
           })
         ]
       }]
