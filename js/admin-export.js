@@ -329,6 +329,88 @@ async function exportAttendanceWord(eventId) {
 }
 
 
+    // ===== HELPER: NO BORDER =====
+    function noBorder() {
+      return {
+        top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
+      };
+    }
+
+
+// ===== HELPER: BUAT BARIS HEADER =====
+function makeHeaderRow(label, value) {
+  const TableRow  = docx.TableRow;
+  const TableCell = docx.TableCell;
+  const Paragraph = docx.Paragraph;
+  const TextRun   = docx.TextRun;
+
+  const cellStyle = {
+    borders : noBorder(),
+    children: []
+  };
+
+  return new TableRow({
+    children: [
+      // Kolom label (lebar tetap)
+      new TableCell({
+        width  : { size: 2400, type: docx.WidthType.DXA },
+        borders: noBorder(),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : label,
+                size : 22,
+                font : "Arial"
+              })
+            ],
+            spacing: { after: 80 }
+          })
+        ]
+      }),
+
+      // Kolom titik dua (lebar kecil)
+      new TableCell({
+        width  : { size: 300, type: docx.WidthType.DXA },
+        borders: noBorder(),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : ":",
+                size : 22,
+                font : "Arial"
+              })
+            ],
+            spacing: { after: 80 }
+          })
+        ]
+      }),
+
+      // Kolom nilai
+      new TableCell({
+        width  : { size: 7300, type: docx.WidthType.DXA },
+        borders: noBorder(),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text : value,
+                size : 22,
+                font : "Arial"
+              })
+            ],
+            spacing: { after: 80 }
+          })
+        ]
+      })
+    ]
+  });
+}
+
 function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
   // Load docx.js jika belum ada
   if (typeof docx === "undefined") {
@@ -763,86 +845,5 @@ async function exportAllAttendanceWord() {
     }
   }
 
-    // ===== HELPER: NO BORDER =====
-    function noBorder() {
-      return {
-        top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
-        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
-      };
-    }
-
-
-// ===== HELPER: BUAT BARIS HEADER =====
-function makeHeaderRow(label, value) {
-  const TableRow  = docx.TableRow;
-  const TableCell = docx.TableCell;
-  const Paragraph = docx.Paragraph;
-  const TextRun   = docx.TextRun;
-
-  const cellStyle = {
-    borders : noBorder(),
-    children: []
-  };
-
-  return new TableRow({
-    children: [
-      // Kolom label (lebar tetap)
-      new TableCell({
-        width  : { size: 2400, type: docx.WidthType.DXA },
-        borders: noBorder(),
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text : label,
-                size : 22,
-                font : "Arial"
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        ]
-      }),
-
-      // Kolom titik dua (lebar kecil)
-      new TableCell({
-        width  : { size: 300, type: docx.WidthType.DXA },
-        borders: noBorder(),
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text : ":",
-                size : 22,
-                font : "Arial"
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        ]
-      }),
-
-      // Kolom nilai
-      new TableCell({
-        width  : { size: 7300, type: docx.WidthType.DXA },
-        borders: noBorder(),
-        children: [
-          new Paragraph({
-            children: [
-              new TextRun({
-                text : value,
-                size : 22,
-                font : "Arial"
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        ]
-      })
-    ]
-  });
-}
 
 
