@@ -536,21 +536,59 @@ if (user.signature_url && user.signature_url.startsWith("http")) {
   }
 
   hideLoading();
-  btn.disabled = false;
-  btn.innerHTML = "💾 Simpan Profil";
+btn.disabled = false;
+btn.innerHTML = "💾 Simpan Profil";
 
-  storeUser({
-    ...user,
-    ...result.updatedUser,
-    idToken: user.idToken
-  });
+showToast("Profil berhasil disimpan!", "success");
+showLoading("Memuat data terbaru...");
 
-  showToast("Profil berhasil disimpan!", "success");
-  setTimeout(() => {
-    window.location.href =
-      user.role === "ADMIN" || user.role === "SUPERADMIN"
-        ? "admin.html" : "index.html";
-  }, 1500);
+// Fetch ulang data user dari server
+// agar session mengandung data terbaru termasuk
+// has_signature, photo_url, dll
+const freshUser = await callAPI("getCurrentUser");
+
+  hideLoading();
+  if (freshUser && !freshUser.error) {
+    // Update session dengan data terbaru dari server
+    storeUser({
+      ...freshUser,
+      name    : user.name,
+      picture : user.picture,
+      idToken : user.idToken,
+      tokenIssuedAt: user.tokenIssuedAt
+    });
+
+    setTimeout(() => {
+      const updatedUser = getStoredUser();
+      if (!updatedUser.isProfileComplete) {
+        // Jika masih belum lengkap, tetap di profile
+        showToast(
+          "Pastikan tanda tangan sudah dibuat",
+          "warning"
+        );
+        return;
+      }
+      window.location.href =
+        updatedUser.role === "ADMIN" ||
+        updatedUser.role === "SUPERADMIN"
+          ? "admin.html" : "index.html";
+    }, 1000);
+
+  } else {
+    // Jika gagal fetch, pakai data lama
+    storeUser({
+      ...user,
+      ...result.updatedUser,
+      idToken: user.idToken
+    });
+
+    setTimeout(() => {
+      window.location.href =
+        user.role === "ADMIN" ||
+        user.role === "SUPERADMIN"
+          ? "admin.html" : "index.html";
+    }, 1000);
+}
 }
 
     // ===== NAVIGATION =====
