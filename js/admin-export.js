@@ -763,14 +763,21 @@ async function exportAllAttendanceWord() {
     }
   }
 // ===== HELPER: NO BORDER =====
-function noBorder() {
-  return {
-    top    : { style: docx.BorderStyle.NONE, size: 0 },
-    bottom : { style: docx.BorderStyle.NONE, size: 0 },
-    left   : { style: docx.BorderStyle.NONE, size: 0 },
-    right  : { style: docx.BorderStyle.NONE, size: 0 }
-  };
-}
+    const headerTable = new Table({
+      width: { size: 10000, type: WidthType.DXA },
+      borders: {
+        top    : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        bottom : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        left   : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        right  : { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        insideH: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        insideV: { style: docx.BorderStyle.NONE, size: 0, color: "FFFFFF" }
+      },
+      rows: [
+        // ... isi rows tetap sama
+      ]
+    });
+
 
 // ===== HELPER: BUAT BARIS HEADER =====
 function makeHeaderRow(label, value) {
