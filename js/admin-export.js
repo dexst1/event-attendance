@@ -436,20 +436,18 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
     const VerticalAlign = docx.VerticalAlign;
 
     
-        // ===== HEADER INFO (Paragraph + Tab Stop) =====
-    const TAB = 2800; // posisi tab dalam twips (DXA)
-
+     // ===== HEADER INFO (Paragraph + Tab Stop) =====
     function makeInfoLine(label, value) {
       return new Paragraph({
         tabStops: [
-          { type: docx.TabStopType.LEFT, position: 2800 },
-          { type: docx.TabStopType.LEFT, position: 3100 }
+          { type: docx.TabStopType.LEFT, position: 2500 },
+          { type: docx.TabStopType.LEFT, position: 2700 }
         ],
         spacing: { after: 60 },
         children: [
-          new TextRun({ text: label, size: 22, font: "Arial", color: "000000" }),
-          new TextRun({ text: "\t: ", size: 22, font: "Arial", color: "000000" }),
-          new TextRun({ text: value, size: 22, font: "Arial", color: "000000" })
+          new TextRun({ text: label,  size: 22, font: "Arial", color: "000000" }),
+          new TextRun({ text: "\t:",  size: 22, font: "Arial", color: "000000" }),
+          new TextRun({ text: "\t" + value, size: 22, font: "Arial", color: "000000" })
         ]
       });
     }
@@ -468,8 +466,6 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
           })
         ]
       }),
-
-      // Info baris
       makeInfoLine("Keterangan Kegiatan", event.keterangan || "-"),
       makeInfoLine("Tema/Topik",          event.title || "-"),
       makeInfoLine("Hari/Tanggal",        formatDateWord(event.startTime)),
@@ -486,7 +482,6 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
             ).join(", ")
           : "-"
       ),
-
       // Spasi sebelum tabel
       new Paragraph({
         spacing: { after: 160 },
@@ -588,10 +583,10 @@ function generateWordDocument(event, logs, userMap, signatureBuffers = {}) {
         properties: {
           page: {
             margin: {
-              top    : 1000,
-              right  : 1000,
-              bottom : 1000,
-              left   : 1000
+              top    : 800,
+              right  : 800,
+              bottom : 800,
+              left   : 800
             }
           }
         },
