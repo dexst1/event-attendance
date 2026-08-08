@@ -298,7 +298,9 @@ async function viewAttendance(eventId, eventTitle) {
     return;
   }
 
-  const logs = result.logs || [];
+  const logs = (result.logs || []).sort((a, b) =>
+    new Date(a.timestamp) - new Date(b.timestamp)
+  );
 
   // Buat modal detail
   const existing = document.getElementById("modal-attendance");

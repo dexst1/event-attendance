@@ -386,7 +386,9 @@ async function exportAttendanceWord(eventId) {
     return;
   }
 
-  const logs = logsResult.logs || [];
+  const logs = (logsResult.logs || []).sort((a, b) =>
+    new Date(a.timestamp) - new Date(b.timestamp)
+  );
   const users = usersResult.success ? usersResult.users : [];
 
   // Map email → user data
