@@ -402,34 +402,50 @@ body {
     }, 1000);
   }
 
-  async function fetchQR() {
-    const result = await callAPI("generateQRToken", {
-      // Kirim GPS user ke server untuk dimasukkan ke token
-      userLat : userGps ? userGps.lat : null,
-      userLng : userGps ? userGps.lng : null
-    });
-
-    if (!result.success || result.error) {
-      document.getElementById("qr-container").innerHTML = `
-        <p class="text-rose-400 text-xs text-center p-4">
-          Gagal generate QR.<br>Refresh halaman.
-        </p>`;
-      return;
-    }
+      // Deklarasikan di luar fungsi (global)
     let currentQRToken = null;
-    const container = document.getElementById("qr-container");
-    container.innerHTML = "";
-    currentQRToken = qrData;
-    new QRCode(document.getElementById("qrcode"), {
-      text           : qrData,
-      width          : 300,   // ← dari 200 ke 300
-      height         : 300,   // ← dari 200 ke 300
-      colorDark      : "#000000",
-      colorLight     : "#ffffff",
-      correctLevel   : QRCode.CorrectLevel.M
-    });
 
-  }
+    async function fetchQR() {
+      const result = await callAPI("generateQRToken", {
+        userLat : userGps ? userGps.lat : null,
+        userLng : userGps ? userGps.lng : null
+      });
+
+      if (!result.success || result.error) {
+        document.getElementById("qr-container").innerHTML = `
+          <p class="text-rose-400 text-xs text-center p-4">
+            Gagal generate QR.<br>Refresh halaman.
+          </p>`;
+        return;
+      }
+
+      // Simpan token ke variabel global
+      currentQRToken = result.token;
+
+      const container = document.getElementById("qr-container");
+      container.innerHTML = "";
+
+      // Buat div target untuk QRCode
+      const qrDiv = document.createElement("div");
+      qrDiv.id = "qrcode";
+      container.appendChild(qrDiv);
+
+      new QRCode(qrDiv, {
+        text        : currentQRToken,
+        width       : 300,
+        height      : 300,
+        colorDark   : "#000000",
+        colorLight  : "#ffffff",
+        correctLevel: QRCode.CorrectLevel.M
+      });
+
+      // Update fullscreen jika sedang terbuka
+      const modal = document.getElementById("modal-qr-fullscreen");
+      if (modal && !modal.classList.contains("hidden")) {
+        renderFullscreenQR();
+      }
+    }
+
 
   // ===== EVENTS =====
   async function loadEvents() {
@@ -767,23 +783,19 @@ function renderFullscreenQR() {
 }
 
 function syncFullscreenTimer() {
-  // Update timer setiap detik mengikuti countdown QR utama
   if (qrFullscreenInterval) clearInterval(qrFullscreenInterval);
 
   qrFullscreenInterval = setInterval(() => {
-    // Ambil timer dari QR utama
-    const mainTimer = document.getElementById("qr-timer");
+    // Ambil dari countdown utama (id="countdown")
+    const mainTimer = document.getElementById("countdown");
     const timerEl   = document.getElementById("qr-fullscreen-timer");
 
     if (mainTimer && timerEl) {
-      timerEl.textContent = mainTimer.textContent;
+      timerEl.textContent = mainTimer.textContent + "s";
     }
-
-    // Jika QR utama diperbarui, perbarui juga QR fullscreen
-    renderFullscreenQR();
-
   }, 1000);
 }
+
 
 </script>
 <!-- Modal QR Fullscreen -->
